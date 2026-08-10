@@ -2,15 +2,15 @@
 status: awaiting_human_verify
 trigger: "In the strategy selection/ranking, `Pay as-is` cost is always identical to `Pool compliance`, but pool compliance should reflect pool purchases and avoided FuelEU penalty and therefore differ whenever pooling is economically/operationally used."
 created: 2026-08-04T17:46:31.5147196+03:00
-updated: 2026-08-04T18:06:30+03:00
+updated: 2026-08-10T11:58:00+03:00
 ---
 
 ## Current Focus
 
-hypothesis: The fix is self-verified and ready for confirmation in the user's real Streamlit workflow.
-test: User selects Pay as-is and Pool compliance in Strategy detail and confirms the displayed NPV and pooling values change accordingly.
-expecting: Pay as-is shows zero pool purchase and its penalty-bearing NPV; Pool compliance shows positive pool purchase/cost, zero covered residual deficit, and a different NPV.
-next_action: Await real-workflow confirmation; parent agent will publish and archive if confirmed.
+hypothesis: Fix is self-verified: the exact case now distinguishes an inactive pooling option from duplicate costing, while deficit cases still show real pool economics.
+test: User imports the original JSON, reviews the new Pooling_Status/Pool_Bought columns and explanation, then creates a residual deficit (for example 2035-only or 9,000 t HSFO in 2026) and confirms Pool compliance changes to Used with a different NPV.
+expecting: Original case says Not needed and explains equal NPV; deficit case says Used, shows a positive pool purchase, and differs from Pay as-is.
+next_action: Await user confirmation in the real workflow before archiving/committing the resolved debug session.
 
 ## Symptoms
 
@@ -29,6 +29,14 @@ started: Reported after recent signed FuelEU and ETS checkbox changes; whether i
 - hypothesis: The simulation or aggregation collapses the two baseline strategies to equal values.
   evidence: Direct execution on the default deficit portfolio produced Pool compliance Total_NPV_EUR 21.6865M with 3,695.17 tCO2e bought and zero penalty, versus Pay as-is Total_NPV_EUR 22.8768M with zero pool bought and 2.3242M FuelEU penalty.
   timestamp: 2026-08-04T17:58:10+03:00
+
+- hypothesis: The exact imported scenario remains equal even after a real FuelEU deficit exists.
+  evidence: Exact-case AppTests diverged for 2035-only, 2026-2050, and 2026 with 9,000 t HSFO. In every case Pool compliance bought the deficit and avoided the Pay as-is penalty.
+  timestamp: 2026-08-10T11:30:00+03:00
+
+- hypothesis: Interactive HSFO edits are visually accepted but do not propagate into strategy evaluation.
+  evidence: Injecting the real `segment_editor` delta changed session `segments_df` from 1,890 to 9,000 t HSFO and immediately produced distinct Pool compliance/Pay as-is totals with positive pool purchase.
+  timestamp: 2026-08-10T11:36:00+03:00
 
 ## Evidence
 
@@ -87,9 +95,74 @@ started: Reported after recent signed FuelEU and ETS checkbox changes; whether i
   found: git diff --check passed. The only worktree changes are app.py, the new tests/test_strategy_selection_ui.py, and the required .planning debug session.
   implication: The patch is minimal, targeted, and contains no whitespace errors or unrelated edits.
 
+- timestamp: 2026-08-10T00:00:00+03:00
+  checked: Human verification of the previously committed selector-binding fix
+  found: The user reports the actual issue remains in `maritime_carbon_decision_case _this one.json`: Pay as-is and Pool compliance have the same `Total_NPV_EUR` after changing HSFO quantity or the applicable start/end years.
+  implication: The prior UI-selector diagnosis was incomplete; investigation must reproduce the strategy-table calculation with the exact imported scenario and trace restored/edited inputs into the engine.
+
+- timestamp: 2026-08-10T00:10:00+03:00
+  checked: Exact user decision-case JSON and its embedded comparison output
+  found: The saved 2026 case has attained GFI 83.932 versus a 2026 FuelEU limit of 89.337, zero FuelEU penalty, zero final deficit, zero pool purchase, and identical Pay as-is/Pool compliance totals. Its segment 1 combines 1,890 t HSFO with 200 t FAME and enables `Low-carbon first` on a 50%-scope voyage.
+  implication: Pooling is correctly a no-op for the saved one-year surplus case. The decisive reproduction must edit the portfolio/horizon far enough to create a negative FuelEU balance, then determine whether the UI passes that edit to evaluation.
+
+- timestamp: 2026-08-10T00:11:00+03:00
+  checked: Repository commits dated 4 August 2026
+  found: Four relevant commits exist: signed FuelEU surplus display/cost support, certified ETS zero rating, helper-module reload, and the later selector-binding fix.
+  implication: History comparison should focus first on the signed-balance commit and any contemporaneous state/editor changes, while ETS and selector-only diffs are lower-probability causes of baseline simulation equality.
+
+- timestamp: 2026-08-10T11:23:00+03:00
+  checked: Exact scenario restored through Streamlit AppTest
+  found: The UI strategy table exactly reproduces the JSON baseline: both strategies total EUR 1,937,279.1771 with zero penalty, pool cost, and final deficit. Extending the 42-strategy, 5%-grid case to 2035 did not complete within the 180-second AppTest timeout.
+  implication: Scenario restore is correct for the saved baseline, disproving a generic import mismatch. The horizon change needs a reduced baseline-only test to avoid confounding correctness with the app's expensive full recomputation.
+
+- timestamp: 2026-08-10T11:27:00+03:00
+  checked: Reduced exact-case AppTest after changing end year from 2026 to 2035
+  found: The rerun completed and both totals remained EUR 19,372,791.771 with zero aggregate penalty, pool cost, and final deficit.
+  implication: The unchanged table is reproducible, but not yet proof of a defect: Pay as-is banks the large 2026-2029 surpluses and carries them into the tighter 2030/2035 years before any pool purchase is considered. A start-at-2035/no-carry case is required to falsify that explanation.
+
+- timestamp: 2026-08-10T11:30:00+03:00
+  checked: Three exact-case deficit-producing AppTests
+  found: At 2035-only, Pool compliance cost EUR 1.981M versus Pay as-is EUR 2.141M and bought EUR 43,899 of pool surplus instead of EUR 204,109 penalty. From 2026-2050, totals were EUR 51.487M versus EUR 62.636M. With 9,000 t HSFO in 2026, totals were EUR 7.630M versus EUR 7.660M.
+  implication: Simulation, aggregation, scenario restore, and year settings all distinguish strategies once pooling is actually used. The user's ordinary HSFO/horizon edits likely did not cross the bank-adjusted deficit threshold, or the interactive editor failed to propagate the edit.
+
+- timestamp: 2026-08-10T11:33:00+03:00
+  checked: Exact restore data-editor state and 4-August signed-cost commit
+  found: Streamlit initializes `segment_editor` with an empty edit delta and the restored five-row `segments_df`. The 4-August signed-cost commit changed only current-segment presentation/helper extraction; it did not modify balance, pooling, banking, scenario restore, strategy simulation, or editor state.
+  implication: The suspected 4-August engine regression is not supported by the diff. A real editor delta is the last untested input path.
+
+- timestamp: 2026-08-10T11:36:00+03:00
+  checked: Exact restore followed by a real Streamlit data-editor delta from 1,890 to 9,000 t HSFO
+  found: Session state updated to 9,000 t; Pool compliance total became EUR 7.629642M with EUR 8,906.97 pool cost, while Pay as-is became EUR 7.659509M with EUR 38,773.33 penalty and 59.38 tCO2e deficit.
+  implication: Editor propagation is correct. The saved-case equality occurs because pooling is not used, and the UI lacks the fields/explanation needed to make that state visible.
+
+- timestamp: 2026-08-10T11:44:00+03:00
+  checked: First focused unittest invocation
+  found: `python -m unittest tests.test_strategy_selection_ui` failed before test collection because `tests` is not a Python package (no importable module path).
+  implication: This is a test-runner invocation issue, not a product/test failure; run the test file directly as the repository's existing pattern requires.
+
+- timestamp: 2026-08-10T11:46:00+03:00
+  checked: Direct execution of tests/test_strategy_selection_ui.py
+  found: Streamlit's isolated runner could not import root-level `regulatory_costs` because direct script execution puts `tests/` rather than the repository root on `sys.path`; tests therefore did not reach product assertions.
+  implication: Use unittest discovery from the repository root, which preserves the root import path. No behavioral hypothesis was tested by this failed invocation.
+
+- timestamp: 2026-08-10T11:50:00+03:00
+  checked: Focused Streamlit strategy-selection regression tests
+  found: Both tests passed. The new test observes equal NPV plus `Not needed`, zero purchase, and the explanatory message in surplus state; after a real editor delta creates a deficit, it observes `Used`, positive pool purchase, unequal NPV, and removal of the no-op message. The prior selector-binding regression also remains green.
+  implication: The fix addresses the confirmed presentation failure and does not disturb active pooling or selected-strategy behavior.
+
+- timestamp: 2026-08-10T11:53:00+03:00
+  checked: Static validation and final worktree scope
+  found: app.py and tests/test_strategy_selection_ui.py compile; `git diff --check` passes. Only app.py, tests/test_strategy_selection_ui.py, and the required debug record are modified.
+  implication: The patch is syntactically valid, whitespace-clean, and contains no unrelated file changes.
+
+- timestamp: 2026-08-10T11:58:00+03:00
+  checked: Exact user JSON after the fix with baseline-only strategy search
+  found: No Streamlit exceptions. Pay as-is remains EUR 1.937279M with `Not enabled`; Pool compliance remains EUR 1.937279M with `Not needed`, zero Pool_Bought_tCO2e, and the explicit no-purchase/current-and-banked-surplus explanation.
+  implication: The original reproduction is now accurately explained in-place, while previously verified deficit cases continue to expose active pooling and distinct NPVs.
+
 ## Resolution
 
-root_cause: The UI selector was disconnected from the displayed cost metrics. Decision Cockpit summary metrics used the globally best row regardless of selected_strategy, and Pooling Desk overwrote selected_strategy with the best row, so both selector choices appeared to have the same cost even though the engine results differed.
-fix: Derive selected_row from the Strategy detail selection; bind cockpit NPV, savings, deficit, and pool metrics to selected_row; and reuse selected_strategy in the Pooling Desk instead of overwriting it with the best-ranked strategy.
-verification: AppTest passes after switching both baseline strategies and observes different selected NPVs plus correct zero/positive pooling need; all 9 unit tests pass; Python compilation passes.
+root_cause: The exact saved case is FuelEU-surplus in 2026 (attained 83.932 vs limit 89.337), and earlier surpluses are banked across longer horizons, so Pool compliance legitimately buys nothing and is numerically identical to Pay as-is. The strategy table nevertheless presented it as a separate active option while hiding `Pool_Bought_tCO2e` and providing no no-op status/explanation, making correct conditional behavior look like duplicate costing. The 4-August signed-cost change did not alter strategy simulation.
+fix: Retained the selector fix; evaluate each strategy as `Used`, `Not needed`, or `Not enabled`; added Pooling_Status and Pool_Bought_tCO2e to the financial table; and added a no-op explanation when Pay as-is and Pool compliance are equal because no pool is purchased.
+verification: Focused Streamlit test file passes 2/2, covering selector binding plus surplus no-op to active-deficit transition. Exact user JSON shows Not needed, zero purchase, explanation, and no exceptions. Deficit cases (2035-only, 2026-2050, and 9,000 t HSFO) show positive pool purchase and distinct NPVs. Python compilation and git diff --check pass.
 files_changed: [app.py, tests/test_strategy_selection_ui.py]

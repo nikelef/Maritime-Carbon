@@ -1216,7 +1216,7 @@ def build_strategy_set(
     return unique
 
 
-@st.cache_data(show_spinner=False, ttl=120)
+@st.cache_data(show_spinner=False)
 def evaluate_strategies(
     segments_df: pd.DataFrame,
     fuels_df: pd.DataFrame,
@@ -1240,6 +1240,18 @@ def evaluate_strategies(
         Final_Deficit_tCO2e=("FuelEU_Deficit_after_pool_tCO2e", "sum"),
         Average_Attained_gCO2e_MJ=("Attained_gCO2e_MJ", "mean"),
     )
+    pooling_enabled = {
+        str(strategy["name"]): bool(strategy.get("pool_deficit", False))
+        for strategy in strategies
+    }
+    group["Pooling_Status"] = [
+        "Used"
+        if float(pool_bought) > 1e-9
+        else "Not needed"
+        if pooling_enabled.get(str(strategy_name), False)
+        else "Not enabled"
+        for strategy_name, pool_bought in zip(group["Strategy"], group["Pool_Bought_tCO2e"])
+    ]
     sort_col = "Total_NPV_EUR" if objective == "Total cost including fuel" else "Compliance_NPV_EUR"
     group = group.sort_values(sort_col, ascending=True).reset_index(drop=True)
     baseline_value = float(group.loc[group["Strategy"] == "Pay as-is", sort_col].iloc[0]) if "Pay as-is" in group["Strategy"].values else float(group[sort_col].max())
@@ -1266,6 +1278,39 @@ def _bounded_int(value: Any, fallback: int, lower: int, upper: int) -> int:
     except (TypeError, ValueError):
         number_value = fallback
     return min(max(number_value, lower), upper)
+
+
+def make_analysis_snapshot(
+    fuels_df: pd.DataFrame,
+    segments_df: pd.DataFrame,
+    settings: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Copy the editable inputs into the immutable state used by calculations."""
+    fuels = ensure_hsfo_option(fuels_df).copy(deep=True)
+    segments = sanitize_segments(segments_df, fuel_codes(fuels)).copy(deep=True)
+    return {
+        "fuels_df": fuels,
+        "segments_df": segments,
+        "settings": deepcopy(settings),
+    }
+
+
+def analysis_snapshots_equal(left: Any, right: Any) -> bool:
+    if not isinstance(left, dict) or not isinstance(right, dict):
+        return False
+    left_fuels = left.get("fuels_df")
+    right_fuels = right.get("fuels_df")
+    left_segments = left.get("segments_df")
+    right_segments = right.get("segments_df")
+    return (
+        isinstance(left_fuels, pd.DataFrame)
+        and isinstance(right_fuels, pd.DataFrame)
+        and isinstance(left_segments, pd.DataFrame)
+        and isinstance(right_segments, pd.DataFrame)
+        and left_fuels.equals(right_fuels)
+        and left_segments.equals(right_segments)
+        and left.get("settings") == right.get("settings")
+    )
 
 
 def queue_scenario_restore(payload: Dict[str, Any]) -> None:
@@ -1339,7 +1384,6 @@ def apply_pending_scenario_restore() -> None:
     for _, fuel_row in restored_fuels.iterrows():
         st.session_state[f"sidebar_price_{fuel_row['Code']}"] = float(fuel_row["Price_EUR_t"])
     st.session_state["_fuel_editor_revision"] = int(st.session_state.get("_fuel_editor_revision", 0)) + 1
-    evaluate_strategies.clear()
     st.session_state["_scenario_restore_message"] = str(payload.get("_scenario_name", "Scenario"))
 
 
@@ -1350,10 +1394,21 @@ access_gate()
 init_state()
 apply_pending_scenario_restore()
 
-st.title(APP_NAME)
-st.caption(
-    "Decision support for minimizing shipowner FuelEU Maritime and EU ETS cost through fuel choice, pooling, banking, OPS, and EUA exposure."
-)
+header_col, run_col = st.columns([5.5, 1.3], vertical_alignment="top")
+with header_col:
+    st.title(APP_NAME)
+    st.caption(
+        "Decision support for minimizing shipowner FuelEU Maritime and EU ETS cost through fuel choice, pooling, banking, OPS, and EUA exposure."
+    )
+with run_col:
+    st.write("")
+    run_analysis_clicked = st.button(
+        "▶ Run analysis",
+        type="primary",
+        use_container_width=True,
+        help="Apply every pending sidebar and portfolio edit, then recalculate all results.",
+    )
+    analysis_status = st.empty()
 
 st.markdown(
     f"""
@@ -1365,7 +1420,7 @@ st.markdown(
 )
 scenario_restore_message = st.session_state.pop("_scenario_restore_message", None)
 if scenario_restore_message:
-    st.success(f"Loaded scenario: {scenario_restore_message}")
+    st.success(f"Loaded scenario inputs: {scenario_restore_message}. Press Run analysis to apply them to the results.")
 
 
 # Sidebar controls
@@ -1459,7 +1514,6 @@ with st.sidebar:
         if price_changed:
             st.session_state["fuels_df"] = ensure_hsfo_option(fuels_for_prices)
             st.session_state["_fuel_editor_revision"] = int(st.session_state.get("_fuel_editor_revision", 0)) + 1
-            evaluate_strategies.clear()
 
     st.header("Pooling Desk")
     pool_buy_price = st.number_input(
@@ -1557,7 +1611,7 @@ with st.sidebar:
     gwp_n2o = st.number_input("GWP100 N2O", min_value=0.0, value=265.0, step=5.0, key="gwp_n2o")
     ops_wtw_g_mj = st.number_input("OPS electricity WtW [gCO2e/MJ]", min_value=0.0, value=0.0, step=1.0, key="ops_wtw_g_mj")
 
-assumptions = {
+draft_assumptions = {
     "start_year": int(start_year),
     "end_year": int(end_year),
     "discount_rate": float(discount_rate),
@@ -1575,8 +1629,8 @@ assumptions = {
     "ops_start_year": int(ops_start_year),
     "ops_fraction": float(ops_fraction),
 }
-scenario_settings = {
-    **assumptions,
+draft_scenario_settings = {
+    **draft_assumptions,
     "objective": str(objective),
     "reduce_fuel": str(reduce_fuel),
     "candidate_alts": list(candidate_alts_raw),
@@ -1659,7 +1713,69 @@ with tab_portfolio:
             st.session_state["segments_df"] = pd.concat([st.session_state["segments_df"], blank], ignore_index=True)
             st.rerun()
 
-    current_profile = calculate_year_profile(st.session_state["segments_df"], st.session_state["fuels_df"], int(start_year), assumptions)
+    draft_snapshot = make_analysis_snapshot(
+        st.session_state["fuels_df"],
+        st.session_state["segments_df"],
+        draft_scenario_settings,
+    )
+    analysis_snapshot = st.session_state.get("_analysis_snapshot")
+    if not isinstance(analysis_snapshot, dict) or run_analysis_clicked:
+        analysis_snapshot = make_analysis_snapshot(
+            draft_snapshot["fuels_df"],
+            draft_snapshot["segments_df"],
+            draft_snapshot["settings"],
+        )
+        st.session_state["_analysis_snapshot"] = analysis_snapshot
+        st.session_state["_analysis_last_run_at"] = datetime.now(timezone.utc).isoformat()
+        evaluate_strategies.clear()
+
+    analysis_dirty = not analysis_snapshots_equal(draft_snapshot, analysis_snapshot)
+    if analysis_dirty:
+        analysis_status.caption("● Pending changes")
+        st.info("Inputs have changed. The charts and tables below still show the last completed run. Press **Run analysis** when ready.")
+    else:
+        analysis_status.caption("✓ Results current")
+        if run_analysis_clicked:
+            st.success("Analysis updated with all pending inputs.")
+
+    analysis_fuels_df = analysis_snapshot["fuels_df"].copy(deep=True)
+    analysis_segments_df = analysis_snapshot["segments_df"].copy(deep=True)
+    applied_settings = deepcopy(analysis_snapshot["settings"])
+    objective = str(applied_settings["objective"])
+    start_year = int(applied_settings["start_year"])
+    end_year = int(applied_settings["end_year"])
+    discount_rate = float(applied_settings["discount_rate"])
+    eua_price = float(applied_settings["eua_price"])
+    eua_escalation = float(applied_settings["eua_escalation"])
+    fuel_escalation = float(applied_settings["fuel_escalation"])
+    fueleu_penalty_vlsfo = float(applied_settings["fueleu_penalty_vlsfo"])
+    pool_buy_price = float(applied_settings["pool_buy_price"])
+    pool_sell_price = float(applied_settings["pool_sell_price"])
+    pool_price_escalation = float(applied_settings["pool_price_escalation"])
+    pool_cap = float(applied_settings["pool_cap_tco2e"])
+    gwp_ch4 = float(applied_settings["gwp_ch4"])
+    gwp_n2o = float(applied_settings["gwp_n2o"])
+    ops_wtw_g_mj = float(applied_settings["ops_wtw_g_mj"])
+    ops_start_year = int(applied_settings["ops_start_year"])
+    ops_fraction = float(applied_settings["ops_fraction"])
+    max_replace = float(applied_settings["max_replace"])
+    replace_step = float(applied_settings["replace_step"])
+    mix_step = float(applied_settings["mix_step"])
+    include_ops = bool(applied_settings["include_ops"])
+
+    analysis_codes = fuel_codes(analysis_fuels_df)
+    analysis_reduce_options = fossil_codes(analysis_fuels_df) or analysis_codes
+    reduce_fuel = _option_value(applied_settings.get("reduce_fuel"), analysis_reduce_options, analysis_reduce_options[0])
+    candidate_alts_raw = [code for code in applied_settings.get("candidate_alts", []) if code in analysis_codes]
+    candidate_alts = [code for code in candidate_alts_raw if code != reduce_fuel]
+    assumptions = {
+        key: applied_settings[key]
+        for key in draft_assumptions
+    }
+    scenario_settings = deepcopy(applied_settings)
+    codes_now = analysis_codes
+
+    current_profile = calculate_year_profile(analysis_segments_df, analysis_fuels_df, int(start_year), assumptions)
     energy = current_profile["Energy_All_MJ"]
     masses = current_profile["Masses_t"]
     overview_df = pd.DataFrame(
@@ -1682,8 +1798,8 @@ with tab_portfolio:
     annual_segment_costs = []
     for yy in period_years:
         yy_costs = current_segment_costs(
-            st.session_state["segments_df"],
-            st.session_state["fuels_df"],
+            analysis_segments_df,
+            analysis_fuels_df,
             int(yy),
             assumptions,
         )
@@ -1731,8 +1847,8 @@ with tab_portfolio:
         st.plotly_chart(style_fig(fig, 620, legend_right=True), use_container_width=True)
 
         pay_as_is_annual = simulate_strategy(
-            st.session_state["segments_df"],
-            st.session_state["fuels_df"],
+            analysis_segments_df,
+            analysis_fuels_df,
             assumptions,
             {
                 "name": "Pay as-is",
@@ -1796,8 +1912,8 @@ with tab_portfolio:
     gfi_years = YEARS
     if gfi_years:
         gfi_df = gfi_yearly_df(
-            st.session_state["segments_df"],
-            st.session_state["fuels_df"],
+            analysis_segments_df,
+            analysis_fuels_df,
             gfi_years,
             assumptions,
         )
@@ -1839,13 +1955,23 @@ strategies = build_strategy_set(
     bool(include_ops),
     float(pool_cap),
 )
-comparison_df, detail_df = evaluate_strategies(
-    st.session_state["segments_df"],
-    st.session_state["fuels_df"],
-    assumptions,
-    strategies,
-    objective,
-)
+if run_analysis_clicked:
+    with st.spinner("Running the strategy analysis with all pending inputs..."):
+        comparison_df, detail_df = evaluate_strategies(
+            analysis_segments_df,
+            analysis_fuels_df,
+            assumptions,
+            strategies,
+            objective,
+        )
+else:
+    comparison_df, detail_df = evaluate_strategies(
+        analysis_segments_df,
+        analysis_fuels_df,
+        assumptions,
+        strategies,
+        objective,
+    )
 
 with tab_cockpit:
     st.subheader("Decision Cockpit")
@@ -1861,6 +1987,28 @@ with tab_cockpit:
         )
         selected_row = comparison_df.loc[comparison_df["Strategy"] == selected_strategy].iloc[0]
         selected_detail = detail_df[detail_df["Strategy"] == selected_strategy].copy()
+
+        baseline_rows = comparison_df.loc[
+            comparison_df["Strategy"].isin(["Pay as-is", "Pool compliance"])
+        ].set_index("Strategy")
+        if {"Pay as-is", "Pool compliance"}.issubset(baseline_rows.index):
+            pay_as_is_row = baseline_rows.loc["Pay as-is"]
+            pool_compliance_row = baseline_rows.loc["Pool compliance"]
+            if (
+                str(pool_compliance_row["Pooling_Status"]) == "Not needed"
+                and math.isclose(
+                    float(pay_as_is_row[sort_col]),
+                    float(pool_compliance_row[sort_col]),
+                    rel_tol=1e-9,
+                    abs_tol=0.01,
+                )
+            ):
+                st.info(
+                    "Pay as-is and Pool compliance have the same NPV because this horizon "
+                    "requires no pool purchase: current and banked FuelEU compliance surplus "
+                    "covers the modeled exposure. Pool compliance will diverge once a residual "
+                    "deficit remains after banked surplus is used."
+                )
 
         k1, k2, k3, k4, k5 = st.columns(5)
         k1.metric("Selected strategy", str(selected_row["Strategy"])[:34])
@@ -1910,6 +2058,8 @@ The current price set does not justify fuel switching or pooling versus paying a
             "Savings_vs_Pay_As_Is_EUR",
             "FuelEU_Penalty_EUR",
             "ETS_Cost_EUR",
+            "Pooling_Status",
+            "Pool_Bought_tCO2e",
             "Pool_Net_Cost_EUR",
             "Fuel_Cost_EUR",
             "Final_Deficit_tCO2e",
@@ -1922,6 +2072,7 @@ The current price set does not justify fuel switching or pooling versus paying a
                     "Savings_vs_Pay_As_Is_EUR": "€{:,.0f}",
                     "FuelEU_Penalty_EUR": "€{:,.0f}",
                     "ETS_Cost_EUR": "€{:,.0f}",
+                    "Pool_Bought_tCO2e": "{:,.0f}",
                     "Pool_Net_Cost_EUR": "€{:,.0f}",
                     "Fuel_Cost_EUR": "€{:,.0f}",
                     "Final_Deficit_tCO2e": "{:,.0f}",
@@ -2121,10 +2272,13 @@ with tab_subscription:
             else:
                 payload = {
                     "saved_at": datetime.now(timezone.utc).isoformat(),
-                    "fuels": st.session_state["fuels_df"].to_dict(orient="records"),
-                    "segments": st.session_state["segments_df"].to_dict(orient="records"),
-                    "assumptions": assumptions,
-                    "settings": scenario_settings,
+                    "fuels": draft_snapshot["fuels_df"].to_dict(orient="records"),
+                    "segments": draft_snapshot["segments_df"].to_dict(orient="records"),
+                    "assumptions": {
+                        key: draft_snapshot["settings"][key]
+                        for key in draft_assumptions
+                    },
+                    "settings": draft_snapshot["settings"],
                 }
                 scenarios = dict(st.session_state.get("scenarios", {}))
                 scenarios[scenario_key] = payload
@@ -2170,8 +2324,8 @@ with tab_subscription:
         "version": APP_VERSION,
         "regulatory_check_date": REGULATORY_CHECK_DATE,
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "fuels": st.session_state["fuels_df"].to_dict(orient="records"),
-        "segments": st.session_state["segments_df"].to_dict(orient="records"),
+        "fuels": analysis_fuels_df.to_dict(orient="records"),
+        "segments": analysis_segments_df.to_dict(orient="records"),
         "assumptions": assumptions,
         "settings": scenario_settings,
         "comparison": comparison_df.to_dict(orient="records") if not comparison_df.empty else [],
