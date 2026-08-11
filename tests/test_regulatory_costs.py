@@ -1,11 +1,51 @@
 import unittest
 
+import pandas as pd
+
 from regulatory_costs import (
+    current_total_cost_yearly_values,
     ets_emissions_factor_tco2e_per_t,
     fueleu_penalty_eur,
     fueleu_signed_cost_eur,
     portfolio_segment_cost_values,
 )
+
+
+class CurrentTotalCostYearlyValuesTests(unittest.TestCase):
+    def _breakdown(self, fueleu_cost_eur: float) -> pd.Series:
+        regulatory_rows = pd.DataFrame(
+            [
+                {
+                    "Year": 2030,
+                    "FuelEU Cost EUR": fueleu_cost_eur,
+                    "EU ETS Cost EUR": 100.0,
+                    "Total Regulatory Cost EUR": 100.0 + fueleu_cost_eur,
+                }
+            ]
+        )
+        strategy_rows = pd.DataFrame(
+            [
+                {
+                    "Year": 2030,
+                    "Fuel_Cost_EUR": 1_000.0,
+                    "Pool_Net_Cost_EUR": 0.0,
+                }
+            ]
+        )
+
+        return current_total_cost_yearly_values(regulatory_rows, strategy_rows).iloc[0]
+
+    def test_positive_fueleu_contribution_increases_regulatory_and_total_cost(self) -> None:
+        row = self._breakdown(40.0)
+
+        self.assertEqual(row["Regulatory cost"], 140.0)
+        self.assertEqual(row["Total cost"], 1_140.0)
+
+    def test_negative_fueleu_contribution_reduces_regulatory_and_total_cost(self) -> None:
+        row = self._breakdown(-40.0)
+
+        self.assertEqual(row["Regulatory cost"], 60.0)
+        self.assertEqual(row["Total cost"], 1_060.0)
 
 
 class FuelEUSignedCostTests(unittest.TestCase):

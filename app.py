@@ -23,6 +23,7 @@ _regulatory_costs = importlib.reload(_regulatory_costs)
 ets_emissions_factor_tco2e_per_t = _regulatory_costs.ets_emissions_factor_tco2e_per_t
 fueleu_penalty_eur = _regulatory_costs.fueleu_penalty_eur
 portfolio_segment_cost_values = _regulatory_costs.portfolio_segment_cost_values
+current_total_cost_yearly_values = _regulatory_costs.current_total_cost_yearly_values
 
 
 # =============================================================================
@@ -647,15 +648,22 @@ def init_state() -> None:
         st.session_state["_fuel_library_version"] = "expanded-biofuels-v1"
         refresh_editors = True
     if refresh_editors:
-        st.session_state.pop("fuel_editor", None)
-        st.session_state.pop("fuel_editor_plain_hsfo", None)
+        for key in list(st.session_state.keys()):
+            if str(key).startswith("fuel_editor") or str(key).startswith("segment_editor"):
+                st.session_state.pop(key, None)
         st.session_state["_fuel_editor_revision"] = int(st.session_state.get("_fuel_editor_revision", 0)) + 1
-        st.session_state.pop("segment_editor", None)
         st.session_state["_hsfo_option_version"] = "plain-hsfo-v2"
     st.session_state.setdefault("_fuel_editor_revision", 0)
     if "segments_df" not in st.session_state:
         st.session_state["segments_df"] = default_segments(fuel_codes(st.session_state["fuels_df"]))
     st.session_state["segments_df"] = sanitize_segments(st.session_state["segments_df"], fuel_codes(st.session_state["fuels_df"]))
+    if refresh_editors or not isinstance(st.session_state.get("_fuel_editor_source_df"), pd.DataFrame):
+        st.session_state["_fuel_editor_source_df"] = ensure_hsfo_option(st.session_state["fuels_df"]).copy(deep=True)
+    if refresh_editors or not isinstance(st.session_state.get("_segment_editor_source_df"), pd.DataFrame):
+        st.session_state["_segment_editor_source_df"] = sanitize_segments(
+            st.session_state["segments_df"],
+            fuel_codes(st.session_state["fuels_df"]),
+        ).copy(deep=True)
     if "scenarios" not in st.session_state:
         st.session_state["scenarios"] = load_json(SCENARIO_PATH)
 
@@ -1317,6 +1325,115 @@ def queue_scenario_restore(payload: Dict[str, Any]) -> None:
     st.session_state["_pending_scenario_restore"] = payload
 
 
+def queue_sidebar_fuel_price_sync(fuels_df: pd.DataFrame) -> None:
+    """Synchronize table-edited prices before sidebar widgets are rebuilt."""
+    st.session_state["_pending_sidebar_fuel_prices"] = {
+        str(row["Code"]): float(row["Price_EUR_t"])
+        for _, row in ensure_hsfo_option(fuels_df).iterrows()
+    }
+
+
+def fuel_editor_widget_key() -> str:
+    return f"fuel_editor_plain_hsfo_{st.session_state.get('_fuel_editor_revision', 0)}"
+
+
+def editor_state_has_changes(editor_state: Any) -> bool:
+    return isinstance(editor_state, dict) and any(
+        bool(editor_state.get(field))
+        for field in ("edited_rows", "added_rows", "deleted_rows")
+    )
+
+
+def apply_editor_state_to_source(source: pd.DataFrame, editor_state: Any) -> pd.DataFrame:
+    """Apply Streamlit's positional data-editor delta to a stable source."""
+    work = source.copy(deep=True)
+    if not isinstance(editor_state, dict):
+        return work
+    for row_id, row_changes in editor_state.get("edited_rows", {}).items():
+        row_position = int(row_id)
+        if row_position < 0 or row_position >= len(work) or not isinstance(row_changes, dict):
+            continue
+        for column, value in row_changes.items():
+            if column in work.columns:
+                work.iat[row_position, work.columns.get_loc(column)] = value
+    deleted_rows = [
+        int(row_position)
+        for row_position in editor_state.get("deleted_rows", [])
+        if 0 <= int(row_position) < len(work)
+    ]
+    if deleted_rows:
+        work = work.drop(work.index[deleted_rows])
+    added_rows = editor_state.get("added_rows", [])
+    if isinstance(added_rows, list) and added_rows:
+        additions = pd.DataFrame(
+            [
+                {column: row.get(column) for column in work.columns}
+                for row in added_rows
+                if isinstance(row, dict)
+            ],
+            columns=work.columns,
+        )
+        if not additions.empty:
+            work = pd.concat([work, additions], ignore_index=True)
+    return work.reset_index(drop=True)
+
+
+def apply_fuel_editor_edit() -> None:
+    """Persist the latest table event before the full app rerun starts."""
+    source = st.session_state.get("_fuel_editor_source_df")
+    if not isinstance(source, pd.DataFrame):
+        return
+    previous = ensure_hsfo_option(st.session_state.get("fuels_df", source))
+    updated = ensure_hsfo_option(
+        apply_editor_state_to_source(source, st.session_state.get(fuel_editor_widget_key()))
+    )
+    if not updated["Price_EUR_t"].equals(previous["Price_EUR_t"]):
+        queue_sidebar_fuel_price_sync(updated)
+    st.session_state["fuels_df"] = updated
+
+
+def apply_segment_editor_edit() -> None:
+    """Persist the latest voyage-table event before the full app rerun starts."""
+    source = st.session_state.get("_segment_editor_source_df")
+    if not isinstance(source, pd.DataFrame):
+        return
+    codes = fuel_codes(st.session_state["fuels_df"])
+    st.session_state["segments_df"] = sanitize_segments(
+        apply_editor_state_to_source(source, st.session_state.get("segment_editor")),
+        codes,
+    )
+
+
+def apply_pending_sidebar_fuel_price_sync() -> None:
+    pending_prices = st.session_state.pop("_pending_sidebar_fuel_prices", None)
+    if not isinstance(pending_prices, dict):
+        return
+    for code, price in pending_prices.items():
+        st.session_state[f"sidebar_price_{code}"] = float(price)
+
+
+def apply_sidebar_fuel_price_edit(code: str) -> None:
+    """Make the newest sidebar edit authoritative over any queued table sync."""
+    widget_key = f"sidebar_price_{code}"
+    if widget_key not in st.session_state or "fuels_df" not in st.session_state:
+        return
+    pending_prices = st.session_state.get("_pending_sidebar_fuel_prices")
+    if isinstance(pending_prices, dict):
+        pending_prices.pop(code, None)
+        if pending_prices:
+            st.session_state["_pending_sidebar_fuel_prices"] = pending_prices
+        else:
+            st.session_state.pop("_pending_sidebar_fuel_prices", None)
+    fuels = ensure_hsfo_option(st.session_state["fuels_df"]).copy()
+    code_mask = fuels["Code"].astype(str) == str(code)
+    if code_mask.any():
+        edited_price = float(st.session_state[widget_key])
+        fuels.loc[code_mask, "Price_EUR_t"] = edited_price
+        st.session_state["fuels_df"] = ensure_hsfo_option(fuels)
+        st.session_state["_fuel_editor_source_df"] = st.session_state["fuels_df"].copy(deep=True)
+        st.session_state["_fuel_editor_revision"] = int(st.session_state.get("_fuel_editor_revision", 0)) + 1
+
+
 def apply_pending_scenario_restore() -> None:
     payload = st.session_state.pop("_pending_scenario_restore", None)
     if not isinstance(payload, dict):
@@ -1333,6 +1450,8 @@ def apply_pending_scenario_restore() -> None:
 
     st.session_state["fuels_df"] = restored_fuels
     st.session_state["segments_df"] = restored_segments
+    st.session_state["_fuel_editor_source_df"] = restored_fuels.copy(deep=True)
+    st.session_state["_segment_editor_source_df"] = restored_segments.copy(deep=True)
 
     st.session_state["objective"] = _option_value(
         settings.get("objective"),
@@ -1381,6 +1500,7 @@ def apply_pending_scenario_restore() -> None:
     for key in list(st.session_state.keys()):
         if str(key).startswith("sidebar_price_") or str(key).startswith("fuel_editor") or key == "segment_editor":
             st.session_state.pop(key, None)
+    st.session_state.pop("_pending_sidebar_fuel_prices", None)
     for _, fuel_row in restored_fuels.iterrows():
         st.session_state[f"sidebar_price_{fuel_row['Code']}"] = float(fuel_row["Price_EUR_t"])
     st.session_state["_fuel_editor_revision"] = int(st.session_state.get("_fuel_editor_revision", 0)) + 1
@@ -1393,6 +1513,7 @@ def apply_pending_scenario_restore() -> None:
 access_gate()
 init_state()
 apply_pending_scenario_restore()
+apply_pending_sidebar_fuel_price_sync()
 
 header_col, run_col = st.columns([5.5, 1.3], vertical_alignment="top")
 with header_col:
@@ -1506,6 +1627,8 @@ with st.sidebar:
                 value=float(fuel_row["Price_EUR_t"]),
                 step=10.0,
                 key=f"sidebar_price_{code}",
+                on_change=apply_sidebar_fuel_price_edit,
+                args=(code,),
                 help=f"Delivered fuel price for {fuel_row['Fuel']}. Used directly in annual fuel cost and escalated by Annual fuel price escalation.",
             )
             if abs(new_price - float(fuel_row["Price_EUR_t"])) > 1e-9:
@@ -1513,7 +1636,6 @@ with st.sidebar:
                 price_changed = True
         if price_changed:
             st.session_state["fuels_df"] = ensure_hsfo_option(fuels_for_prices)
-            st.session_state["_fuel_editor_revision"] = int(st.session_state.get("_fuel_editor_revision", 0)) + 1
 
     st.header("Pooling Desk")
     pool_buy_price = st.number_input(
@@ -1648,8 +1770,10 @@ with tab_portfolio:
     st.subheader("Voyage Portfolio")
     st.caption("Enter annualized voyage segments. Fuel quantities are per trip; annual trips scale the model.")
 
+    fuel_draft_before_editor = ensure_hsfo_option(st.session_state["fuels_df"]).copy(deep=True)
+    fuel_editor_source = ensure_hsfo_option(st.session_state["_fuel_editor_source_df"]).copy(deep=True)
     fuel_editor = st.data_editor(
-        st.session_state["fuels_df"],
+        fuel_editor_source,
         use_container_width=True,
         hide_index=True,
         num_rows="dynamic",
@@ -1671,14 +1795,34 @@ with tab_portfolio:
                 help="When checked, this fuel's ETS CO2e factor is treated as zero. Use only with valid sustainability certification and evidence.",
             ),
         },
-        key=f"fuel_editor_plain_hsfo_{st.session_state.get('_fuel_editor_revision', 0)}",
+        key=fuel_editor_widget_key(),
+        on_change=apply_fuel_editor_edit,
     )
-    st.session_state["fuels_df"] = ensure_hsfo_option(fuel_editor)
+    fuel_editor_state = st.session_state.get(fuel_editor_widget_key())
+    if editor_state_has_changes(fuel_editor_state):
+        updated_fuels = ensure_hsfo_option(fuel_editor)
+        if not updated_fuels["Price_EUR_t"].equals(fuel_draft_before_editor["Price_EUR_t"]):
+            queue_sidebar_fuel_price_sync(updated_fuels)
+    else:
+        updated_fuels = fuel_draft_before_editor
+    st.session_state["fuels_df"] = updated_fuels
     codes_now = fuel_codes(st.session_state["fuels_df"])
     st.session_state["segments_df"] = sanitize_segments(st.session_state["segments_df"], codes_now)
 
+    expected_segment_columns = sanitize_segments(
+        st.session_state["_segment_editor_source_df"],
+        codes_now,
+    ).columns.tolist()
+    if st.session_state["_segment_editor_source_df"].columns.tolist() != expected_segment_columns:
+        st.session_state["_segment_editor_source_df"] = st.session_state["segments_df"].copy(deep=True)
+        st.session_state.pop("segment_editor", None)
+    segment_editor_source = sanitize_segments(
+        st.session_state["_segment_editor_source_df"],
+        codes_now,
+    ).copy(deep=True)
+
     segment_editor = st.data_editor(
-        st.session_state["segments_df"],
+        segment_editor_source,
         use_container_width=True,
         hide_index=True,
         num_rows="dynamic",
@@ -1694,14 +1838,21 @@ with tab_portfolio:
             },
         },
         key="segment_editor",
+        on_change=apply_segment_editor_edit,
     )
-    st.session_state["segments_df"] = sanitize_segments(segment_editor, codes_now)
+    if editor_state_has_changes(st.session_state.get("segment_editor")):
+        st.session_state["segments_df"] = sanitize_segments(segment_editor, codes_now)
 
     c1, c2, c3 = st.columns([1, 1, 2])
     with c1:
         if st.button("Reset portfolio to sample"):
             st.session_state["fuels_df"] = default_fuels()
             st.session_state["segments_df"] = default_segments(fuel_codes(st.session_state["fuels_df"]))
+            st.session_state["_fuel_editor_source_df"] = st.session_state["fuels_df"].copy(deep=True)
+            st.session_state["_segment_editor_source_df"] = st.session_state["segments_df"].copy(deep=True)
+            st.session_state.pop("segment_editor", None)
+            st.session_state["_fuel_editor_revision"] = int(st.session_state.get("_fuel_editor_revision", 0)) + 1
+            queue_sidebar_fuel_price_sync(st.session_state["fuels_df"])
             st.rerun()
     with c2:
         if st.button("Add empty segment"):
@@ -1711,6 +1862,8 @@ with tab_portfolio:
             for code in codes_now:
                 blank.loc[:, f"{code}_t_trip"] = 0.0
             st.session_state["segments_df"] = pd.concat([st.session_state["segments_df"], blank], ignore_index=True)
+            st.session_state["_segment_editor_source_df"] = st.session_state["segments_df"].copy(deep=True)
+            st.session_state.pop("segment_editor", None)
             st.rerun()
 
     draft_snapshot = make_analysis_snapshot(
@@ -1727,7 +1880,6 @@ with tab_portfolio:
         )
         st.session_state["_analysis_snapshot"] = analysis_snapshot
         st.session_state["_analysis_last_run_at"] = datetime.now(timezone.utc).isoformat()
-        evaluate_strategies.clear()
 
     analysis_dirty = not analysis_snapshots_equal(draft_snapshot, analysis_snapshot)
     if analysis_dirty:
@@ -1863,15 +2015,9 @@ with tab_portfolio:
                 "switch_start_year": int(start_year),
             },
         )
-        total_cost_yearly = pay_as_is_annual[
-            ["Year", "Compliance_Cost_EUR", "Fuel_Cost_EUR", "Pool_Net_Cost_EUR", "Total_Cost_EUR"]
-        ].rename(
-            columns={
-                "Compliance_Cost_EUR": "Regulatory cost",
-                "Fuel_Cost_EUR": "Fuel cost",
-                "Pool_Net_Cost_EUR": "Pooling cost",
-                "Total_Cost_EUR": "Total cost",
-            }
+        total_cost_yearly = current_total_cost_yearly_values(
+            total_rows,
+            pay_as_is_annual,
         )
         total_cost_plot_df = total_cost_yearly.melt(
             id_vars="Year",

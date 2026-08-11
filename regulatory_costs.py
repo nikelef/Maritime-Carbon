@@ -1,3 +1,6 @@
+import pandas as pd
+
+
 VLSFO_REFERENCE_LCV_MJ_T = 41_000.0
 
 
@@ -67,3 +70,23 @@ def portfolio_segment_cost_values(
         "ets_cost_eur": ets_cost,
         "total_regulatory_cost_eur": fueleu_cost + ets_cost,
     }
+
+
+def current_total_cost_yearly_values(
+    current_regulatory_rows: pd.DataFrame,
+    strategy_rows: pd.DataFrame,
+) -> pd.DataFrame:
+    """Build chart values from the displayed signed regulatory total and cash costs."""
+    yearly = current_regulatory_rows[
+        ["Year", "Total Regulatory Cost EUR"]
+    ].merge(
+        strategy_rows[["Year", "Fuel_Cost_EUR", "Pool_Net_Cost_EUR"]],
+        on="Year",
+        how="inner",
+        validate="one_to_one",
+    )
+    yearly["Regulatory cost"] = yearly["Total Regulatory Cost EUR"]
+    yearly["Fuel cost"] = yearly["Fuel_Cost_EUR"]
+    yearly["Pooling cost"] = yearly["Pool_Net_Cost_EUR"]
+    yearly["Total cost"] = yearly[["Regulatory cost", "Fuel cost", "Pooling cost"]].sum(axis=1)
+    return yearly[["Year", "Regulatory cost", "Fuel cost", "Pooling cost", "Total cost"]]
