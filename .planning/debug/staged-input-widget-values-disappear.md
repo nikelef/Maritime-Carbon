@@ -2,15 +2,15 @@
 status: awaiting_human_verify
 trigger: "After commit 39a6806 added staged analysis inputs and an explicit Run analysis button, changing a value in the voyage portfolio data_editor or the left sidebar still causes a small Streamlit rerun. Table cell edits can disappear/reset, forcing the user to enter the same value several times before it sticks. Find and fix this UI-state regression while preserving the explicit Run analysis behavior."
 created: 2026-08-10T16:22:09.5980618+03:00
-updated: 2026-08-10T18:03:00+03:00
+updated: 2026-08-12T20:56:57.3288586+03:00
 ---
 
 ## Current Focus
 
-hypothesis: verified in automated coverage — immutable editor sources keep Streamlit element IDs stable across ordinary edits, and on_change callbacks persist events before rerun
-test: user rapidly edits multiple cells in both tables, interleaves an unrelated sidebar change and a sidebar fuel-price change, then presses Run analysis
-expecting: every table value sticks on first entry; ordinary refreshes do not recreate either editor; the fuel-price sidebar event safely rebases only the fuel editor from the complete draft; results stay unchanged before Run and update afterward
-next_action: await human verification in the real browser workflow that previously required repeated entry
+hypothesis: confirmed and fixed — non-form data editors submitted each debounced cell mutation as a separate rerun, while form-bound editors retain rapid changes in browser form state and submit the complete state dictionary once
+test: user rapidly edits multiple VLSFO t/trip cells without pressing Run analysis, observes no automatic refresh, then presses the form-bound Run analysis button once
+expecting: every rapid value remains visible before submission; one Run analysis click submits all table values together and updates results, with no intermediate per-cell reruns
+next_action: await human verification in the real deployed browser workflow that disproved commit 318bdb9
 
 ## Symptoms
 
@@ -157,9 +157,29 @@ started: Began with the staged Run analysis implementation in commit 39a6806.
   found: Changes are limited to app.py, the focused untracked persistence test, and this debug session. The final app diff contains stable editor sources, event callbacks, safe explicit source replacement paths, the earlier price synchronization fix, and removal of unnecessary global cache clearing; no unrelated tracked files were modified.
   implication: The fix is targeted and ready for real-browser verification before archiving or committing.
 
+- timestamp: 2026-08-12T20:43:51.8324058+03:00
+  checked: human verification of deployed commit 318bdb9
+  found: Entering VLSFO t/trip values rapidly across voyage-table cells still starts an automatic refresh without pressing Run analysis; only the first entered value remains and subsequent rapid values disappear.
+  implication: The sequential AppTest lifecycle and stable-element-ID assertions were insufficient. The prior fix closed a real one-rerun-late identity reset, but rapid overlapping browser edits still cross a client/server rerun boundary before all client values become durable Python state.
+
+- timestamp: 2026-08-12T20:46:11.9839195+03:00
+  checked: installed Streamlit 1.41.1 data-editor frontend bundle and WidgetStateManager
+  found: A cell mutation updates the editor's in-memory EditingState, then invokes a 150 ms debounced serializer which calls setStringValue. WidgetStateManager.onWidgetValueChanged immediately sends a rerun for fromUi values outside a form. For a valid form_id it instead records pending form changes without sending a rerun; submitForm copies the complete form widget-state dictionary into the outgoing message and triggers one rerun.
+  implication: The remaining defect is below Python state management. Later rapid values can be lost before Python receives them, so callbacks, immutable source dataframes, or fragments cannot reconstruct them reliably. A form is Streamlit's native batching boundary and is the high-confidence fix direction.
+
+- timestamp: 2026-08-12T20:56:57.3288586+03:00
+  checked: form-bound implementation and focused AppTest regression
+  found: Both editor protos have form_id=portfolio_input_form and there is exactly one Run analysis action. Three voyage-cell edits and one fuel-table edit were submitted as one complete payload; a simultaneous sidebar event left the form payload pending without changing the analysis snapshot, and the later Run submit applied the complete table payload plus current sidebar settings. AppTest cannot resend browser form state with a later synthetic submit, so the test explicitly injects the full submit payload after separately proving the state survived the sidebar rerun.
+  implication: The app now uses the exact frontend batching branch that does not call sendUpdateWidgetsMessage for each cell. Coverage tests the structural no-rerun guarantee and the one-submit state transition rather than repeating sequential per-cell reruns.
+
+- timestamp: 2026-08-12T20:56:57.3288586+03:00
+  checked: full automated regression suite and static validation
+  found: All 14 discovered tests passed in 42.4 seconds, including focused persistence, strategy-selection UI, and regulatory-cost coverage. python -m py_compile app.py and git diff --check passed.
+  implication: The batching fix preserves explicit Run semantics, adjacent strategy/pooling workflows, signed regulatory calculations, syntax, and repository test health. A real browser check remains necessary because AppTest does not execute overlapping DOM edits.
+
 ## Resolution
 
-root_cause: Streamlit 1.41.1 includes the serialized input dataframe bytes in each data_editor element ID. The app stored every editor return value into fuels_df/segments_df and then passed that changed dataframe back as the next data argument. Consequently, every ordinary cell edit changed the editor's element ID one rerun later despite a stable explicit key, recreating the browser widget while further edits could still be in flight and discarding them. The first fix removed additional key revisions but left this source-hash identity change intact.
-fix: Kept the first fix's synchronization ordering, then separated immutable _fuel_editor_source_df/_segment_editor_source_df values from mutable fuels_df/segments_df drafts. Ordinary editor events are applied to the stable source in on_change callbacks before rerun and update only the mutable draft, so input bytes and element IDs remain stable. Unrelated reruns cannot replace a durable draft when an editor payload is absent. Scenario/reset/schema operations explicitly replace sources; a sidebar fuel-price edit safely rebases only the fuel editor from the complete durable draft and advances its revision because Streamlit forbids programmatic data-editor state assignment. Removed unnecessary global cache invalidation and added element-ID regression coverage.
-verification: Focused AppTest passed in 9.1 seconds across segment edits, unrelated sidebar reruns, repeated fuel-table edits, queued price synchronization, one intentional sidebar-price rebase, stable IDs through Run, draft-only state before Run, and snapshot application after Run. py_compile and git diff --check passed; 8/8 regulatory tests and 2/2 strategy-selection UI tests passed. Real-browser rapid-edit confirmation remains required.
-files_changed: [app.py, tests/test_staged_input_persistence_ui.py]
+root_cause: Streamlit 1.41.1 debounces data-editor serialization by 150 ms and, for editors outside a form, sends a rerun immediately after each serialized mutation. During a slow full-app rerun, additional rapid cell values can still exist only in the browser editor while the earlier server result patches/reconciles that editor; those unsubmitted values can disappear and Python callbacks cannot recover them. Commit 318bdb9 fixed a separate source-hash remount cause but kept the per-cell automatic rerun boundary, so it could not make overlapping browser edits reliable.
+fix: Wrapped both portfolio data editors in one clear_on_submit=False, enter_to_submit=False Streamlit form. The sole primary Run analysis form submit receives the browser's complete pending editor state, commits both deltas into durable draft/source dataframes, synchronizes table fuel prices, and updates the applied analysis snapshot in that same rerun. Table cells therefore no longer initiate automatic reruns. Reset and Add empty segment are also explicit form submits so they cannot race unsent browser edits. Sidebar controls remain independently staged and do not rebase the editor while form edits are pending. UI copy explains the batched behavior.
+verification: Focused regression verifies shared form identity, no intermediate table commit during a sidebar rerun, preservation of the complete pending multi-cell payload, and one-submit application of three voyage cells, a fuel-table price, and current sidebar settings. All 14 repository tests passed in 42.4 seconds; py_compile and git diff --check passed. Real-browser rapid-edit confirmation remains required.
+files_changed: [app.py, tests/test_staged_input_persistence_ui.py, tests/test_strategy_selection_ui.py]

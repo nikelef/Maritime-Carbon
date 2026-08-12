@@ -144,16 +144,14 @@ class StrategySelectionUITests(unittest.TestCase):
             "added_rows": [],
             "deleted_rows": [],
         }
-        app.run(timeout=120)
-
-        pending_strategy_table = next(
-            item.value
-            for item in app.dataframe
-            if "Strategy" in item.value.columns and "Total_NPV_EUR" in item.value.columns
-        ).set_index("Strategy")
-        self.assertEqual(pending_strategy_table.loc["Pay as-is", "Total_NPV_EUR"], original_total)
-        self.assertEqual(pending_strategy_table.loc["Pool compliance", "Pooling_Status"], "Not needed")
-        self.assertTrue(any("Inputs have changed" in item.value for item in app.info))
+        self.assertEqual(
+            [item.proto.form_id for item in app.dataframe[:2]],
+            ["portfolio_input_form", "portfolio_input_form"],
+        )
+        self.assertEqual(
+            float(app.session_state["_analysis_snapshot"]["segments_df"].loc[0, "HSFO_t_trip"]),
+            0.0,
+        )
 
         self._click_run_analysis(app)
 

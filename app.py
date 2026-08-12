@@ -1337,13 +1337,6 @@ def fuel_editor_widget_key() -> str:
     return f"fuel_editor_plain_hsfo_{st.session_state.get('_fuel_editor_revision', 0)}"
 
 
-def editor_state_has_changes(editor_state: Any) -> bool:
-    return isinstance(editor_state, dict) and any(
-        bool(editor_state.get(field))
-        for field in ("edited_rows", "added_rows", "deleted_rows")
-    )
-
-
 def apply_editor_state_to_source(source: pd.DataFrame, editor_state: Any) -> pd.DataFrame:
     """Apply Streamlit's positional data-editor delta to a stable source."""
     work = source.copy(deep=True)
@@ -1378,29 +1371,85 @@ def apply_editor_state_to_source(source: pd.DataFrame, editor_state: Any) -> pd.
     return work.reset_index(drop=True)
 
 
-def apply_fuel_editor_edit() -> None:
-    """Persist the latest table event before the full app rerun starts."""
-    source = st.session_state.get("_fuel_editor_source_df")
-    if not isinstance(source, pd.DataFrame):
-        return
-    previous = ensure_hsfo_option(st.session_state.get("fuels_df", source))
-    updated = ensure_hsfo_option(
-        apply_editor_state_to_source(source, st.session_state.get(fuel_editor_widget_key()))
+def commit_portfolio_form_edits() -> None:
+    """Commit the complete browser-batched editor payload into the draft."""
+    previous_fuels = ensure_hsfo_option(st.session_state.get("fuels_df", default_fuels()))
+    updated_fuels = ensure_hsfo_option(
+        apply_editor_state_to_source(
+            previous_fuels,
+            st.session_state.get(fuel_editor_widget_key()),
+        )
     )
-    if not updated["Price_EUR_t"].equals(previous["Price_EUR_t"]):
-        queue_sidebar_fuel_price_sync(updated)
-    st.session_state["fuels_df"] = updated
+    if not updated_fuels["Price_EUR_t"].equals(previous_fuels["Price_EUR_t"]):
+        queue_sidebar_fuel_price_sync(updated_fuels)
 
-
-def apply_segment_editor_edit() -> None:
-    """Persist the latest voyage-table event before the full app rerun starts."""
-    source = st.session_state.get("_segment_editor_source_df")
-    if not isinstance(source, pd.DataFrame):
-        return
-    codes = fuel_codes(st.session_state["fuels_df"])
-    st.session_state["segments_df"] = sanitize_segments(
-        apply_editor_state_to_source(source, st.session_state.get("segment_editor")),
+    codes = fuel_codes(updated_fuels)
+    previous_segments = sanitize_segments(
+        st.session_state.get("segments_df", default_segments(codes)),
         codes,
+    )
+    updated_segments = sanitize_segments(
+        apply_editor_state_to_source(
+            previous_segments,
+            st.session_state.get("segment_editor"),
+        ),
+        codes,
+    )
+
+    st.session_state["fuels_df"] = updated_fuels
+    st.session_state["segments_df"] = updated_segments
+    st.session_state["_fuel_editor_source_df"] = updated_fuels.copy(deep=True)
+    st.session_state["_segment_editor_source_df"] = updated_segments.copy(deep=True)
+    # The form has submitted every pending editor value, so rebasing both sources
+    # for the next edit batch is safe. The fuel revision also detaches stale state
+    # from the just-submitted editor instance.
+    st.session_state["_fuel_editor_revision"] = int(
+        st.session_state.get("_fuel_editor_revision", 0)
+    ) + 1
+
+
+def submit_portfolio_for_analysis() -> None:
+    commit_portfolio_form_edits()
+    st.session_state["_portfolio_run_requested"] = True
+
+
+def reset_portfolio_form() -> None:
+    st.session_state["fuels_df"] = default_fuels()
+    st.session_state["segments_df"] = default_segments(
+        fuel_codes(st.session_state["fuels_df"])
+    )
+    st.session_state["_fuel_editor_source_df"] = st.session_state[
+        "fuels_df"
+    ].copy(deep=True)
+    st.session_state["_segment_editor_source_df"] = st.session_state[
+        "segments_df"
+    ].copy(deep=True)
+    st.session_state["_fuel_editor_revision"] = int(
+        st.session_state.get("_fuel_editor_revision", 0)
+    ) + 1
+    queue_sidebar_fuel_price_sync(st.session_state["fuels_df"])
+    st.session_state["_portfolio_form_message"] = (
+        "Portfolio reset to the sample draft. Press Run analysis to update results."
+    )
+
+
+def add_empty_segment_from_form() -> None:
+    commit_portfolio_form_edits()
+    codes = fuel_codes(st.session_state["fuels_df"])
+    blank = default_segments(codes).iloc[[0]].copy()
+    blank.loc[:, "Segment"] = "New segment"
+    blank.loc[:, "Annual trips"] = 1
+    for code in codes:
+        blank.loc[:, f"{code}_t_trip"] = 0.0
+    st.session_state["segments_df"] = pd.concat(
+        [st.session_state["segments_df"], blank],
+        ignore_index=True,
+    )
+    st.session_state["_segment_editor_source_df"] = st.session_state[
+        "segments_df"
+    ].copy(deep=True)
+    st.session_state["_portfolio_form_message"] = (
+        "Empty segment added to the draft. Press Run analysis to update results."
     )
 
 
@@ -1430,8 +1479,6 @@ def apply_sidebar_fuel_price_edit(code: str) -> None:
         edited_price = float(st.session_state[widget_key])
         fuels.loc[code_mask, "Price_EUR_t"] = edited_price
         st.session_state["fuels_df"] = ensure_hsfo_option(fuels)
-        st.session_state["_fuel_editor_source_df"] = st.session_state["fuels_df"].copy(deep=True)
-        st.session_state["_fuel_editor_revision"] = int(st.session_state.get("_fuel_editor_revision", 0)) + 1
 
 
 def apply_pending_scenario_restore() -> None:
@@ -1498,7 +1545,11 @@ def apply_pending_scenario_restore() -> None:
     st.session_state["ops_wtw_g_mj"] = max(_bounded_float(settings.get("ops_wtw_g_mj"), 0.0, 0.0, 1_000_000.0), 0.0)
 
     for key in list(st.session_state.keys()):
-        if str(key).startswith("sidebar_price_") or str(key).startswith("fuel_editor") or key == "segment_editor":
+        if (
+            str(key).startswith("sidebar_price_")
+            or str(key).startswith("fuel_editor")
+            or str(key).startswith("segment_editor")
+        ):
             st.session_state.pop(key, None)
     st.session_state.pop("_pending_sidebar_fuel_prices", None)
     for _, fuel_row in restored_fuels.iterrows():
@@ -1514,22 +1565,13 @@ access_gate()
 init_state()
 apply_pending_scenario_restore()
 apply_pending_sidebar_fuel_price_sync()
+run_analysis_clicked = bool(st.session_state.pop("_portfolio_run_requested", False))
 
-header_col, run_col = st.columns([5.5, 1.3], vertical_alignment="top")
-with header_col:
-    st.title(APP_NAME)
-    st.caption(
-        "Decision support for minimizing shipowner FuelEU Maritime and EU ETS cost through fuel choice, pooling, banking, OPS, and EUA exposure."
-    )
-with run_col:
-    st.write("")
-    run_analysis_clicked = st.button(
-        "▶ Run analysis",
-        type="primary",
-        use_container_width=True,
-        help="Apply every pending sidebar and portfolio edit, then recalculate all results.",
-    )
-    analysis_status = st.empty()
+st.title(APP_NAME)
+st.caption(
+    "Decision support for minimizing shipowner FuelEU Maritime and EU ETS cost through fuel choice, pooling, banking, OPS, and EUA exposure."
+)
+analysis_status = st.empty()
 
 st.markdown(
     f"""
@@ -1768,103 +1810,155 @@ tab_portfolio, tab_cockpit, tab_pooling, tab_regulations, tab_subscription = st.
 
 with tab_portfolio:
     st.subheader("Voyage Portfolio")
-    st.caption("Enter annualized voyage segments. Fuel quantities are per trip; annual trips scale the model.")
-
-    fuel_draft_before_editor = ensure_hsfo_option(st.session_state["fuels_df"]).copy(deep=True)
-    fuel_editor_source = ensure_hsfo_option(st.session_state["_fuel_editor_source_df"]).copy(deep=True)
-    fuel_editor = st.data_editor(
-        fuel_editor_source,
-        use_container_width=True,
-        hide_index=True,
-        num_rows="dynamic",
-        column_order=[col for col in st.session_state["fuels_df"].columns if col != "Color"],
-        column_config={
-            "Code": st.column_config.TextColumn("Code", disabled=True),
-            "Fuel": st.column_config.TextColumn("Fuel"),
-            "Family": st.column_config.SelectboxColumn("Family", options=["Fossil oil", "Fossil gas", "Fossil alcohol", "Certified biofuel", "RFNBO", "Renewable / other"]),
-            "LCV_MJ_t": st.column_config.NumberColumn("LCV [MJ/t]", min_value=0.0, step=100.0),
-            "WtW_gCO2e_MJ": st.column_config.NumberColumn("WtW [gCO2e/MJ]", min_value=0.0, step=0.5),
-            "ETS_CO2_t_t": st.column_config.NumberColumn("ETS CO2 [t/t]", min_value=0.0, step=0.001),
-            "ETS_CH4_t_t": st.column_config.NumberColumn("ETS CH4 [t/t]", min_value=0.0, step=0.00001, format="%.6f"),
-            "ETS_N2O_t_t": st.column_config.NumberColumn("ETS N2O [t/t]", min_value=0.0, step=0.00001, format="%.6f"),
-            "Price_EUR_t": st.column_config.NumberColumn("Price [€/t]", min_value=0.0, step=10.0),
-            "Supply_cap_t": st.column_config.NumberColumn("Supply cap [t/year]", min_value=0.0, step=100.0),
-            "RFNBO": st.column_config.CheckboxColumn("RFNBO"),
-            "ETS_zero_if_certified": st.column_config.CheckboxColumn(
-                "ETS zero if certified",
-                help="When checked, this fuel's ETS CO2e factor is treated as zero. Use only with valid sustainability certification and evidence.",
-            ),
-        },
-        key=fuel_editor_widget_key(),
-        on_change=apply_fuel_editor_edit,
+    st.caption(
+        "Enter annualized voyage segments. Fuel quantities are per trip; annual trips scale the model. "
+        "Table edits are batched in your browser and do not refresh the page."
     )
-    fuel_editor_state = st.session_state.get(fuel_editor_widget_key())
-    if editor_state_has_changes(fuel_editor_state):
-        updated_fuels = ensure_hsfo_option(fuel_editor)
-        if not updated_fuels["Price_EUR_t"].equals(fuel_draft_before_editor["Price_EUR_t"]):
-            queue_sidebar_fuel_price_sync(updated_fuels)
-    else:
-        updated_fuels = fuel_draft_before_editor
-    st.session_state["fuels_df"] = updated_fuels
-    codes_now = fuel_codes(st.session_state["fuels_df"])
-    st.session_state["segments_df"] = sanitize_segments(st.session_state["segments_df"], codes_now)
 
+    codes_now = fuel_codes(st.session_state["fuels_df"])
+    st.session_state["segments_df"] = sanitize_segments(
+        st.session_state["segments_df"],
+        codes_now,
+    )
     expected_segment_columns = sanitize_segments(
         st.session_state["_segment_editor_source_df"],
         codes_now,
     ).columns.tolist()
     if st.session_state["_segment_editor_source_df"].columns.tolist() != expected_segment_columns:
-        st.session_state["_segment_editor_source_df"] = st.session_state["segments_df"].copy(deep=True)
-        st.session_state.pop("segment_editor", None)
-    segment_editor_source = sanitize_segments(
-        st.session_state["_segment_editor_source_df"],
-        codes_now,
-    ).copy(deep=True)
+        st.session_state["_segment_editor_source_df"] = st.session_state[
+            "segments_df"
+        ].copy(deep=True)
 
-    segment_editor = st.data_editor(
-        segment_editor_source,
-        use_container_width=True,
-        hide_index=True,
-        num_rows="dynamic",
-        column_config={
-            "Segment": st.column_config.TextColumn("Segment"),
-            "Route scope": st.column_config.SelectboxColumn("Route scope", options=list(ROUTE_SCOPES.keys()), required=True),
-            "Annual trips": st.column_config.NumberColumn("Annual trips", min_value=0.0, step=1.0),
-            "Low-carbon first": st.column_config.CheckboxColumn("FuelEU low-carbon first"),
-            "OPS_MWh_trip": st.column_config.NumberColumn("OPS [MWh/trip]", min_value=0.0, step=10.0),
-            **{
-                f"{code}_t_trip": st.column_config.NumberColumn(f"{code} [t/trip]", min_value=0.0, step=1.0)
-                for code in codes_now
+    with st.form(
+        "portfolio_input_form",
+        clear_on_submit=False,
+        enter_to_submit=False,
+    ):
+        fuel_editor_source = ensure_hsfo_option(
+            st.session_state["_fuel_editor_source_df"]
+        ).copy(deep=True)
+        st.data_editor(
+            fuel_editor_source,
+            use_container_width=True,
+            hide_index=True,
+            num_rows="dynamic",
+            column_order=[
+                col for col in st.session_state["fuels_df"].columns if col != "Color"
+            ],
+            column_config={
+                "Code": st.column_config.TextColumn("Code", disabled=True),
+                "Fuel": st.column_config.TextColumn("Fuel"),
+                "Family": st.column_config.SelectboxColumn(
+                    "Family",
+                    options=[
+                        "Fossil oil",
+                        "Fossil gas",
+                        "Fossil alcohol",
+                        "Certified biofuel",
+                        "RFNBO",
+                        "Renewable / other",
+                    ],
+                ),
+                "LCV_MJ_t": st.column_config.NumberColumn(
+                    "LCV [MJ/t]", min_value=0.0, step=100.0
+                ),
+                "WtW_gCO2e_MJ": st.column_config.NumberColumn(
+                    "WtW [gCO2e/MJ]", min_value=0.0, step=0.5
+                ),
+                "ETS_CO2_t_t": st.column_config.NumberColumn(
+                    "ETS CO2 [t/t]", min_value=0.0, step=0.001
+                ),
+                "ETS_CH4_t_t": st.column_config.NumberColumn(
+                    "ETS CH4 [t/t]", min_value=0.0, step=0.00001, format="%.6f"
+                ),
+                "ETS_N2O_t_t": st.column_config.NumberColumn(
+                    "ETS N2O [t/t]", min_value=0.0, step=0.00001, format="%.6f"
+                ),
+                "Price_EUR_t": st.column_config.NumberColumn(
+                    "Price [€/t]", min_value=0.0, step=10.0
+                ),
+                "Supply_cap_t": st.column_config.NumberColumn(
+                    "Supply cap [t/year]", min_value=0.0, step=100.0
+                ),
+                "RFNBO": st.column_config.CheckboxColumn("RFNBO"),
+                "ETS_zero_if_certified": st.column_config.CheckboxColumn(
+                    "ETS zero if certified",
+                    help=(
+                        "When checked, this fuel's ETS CO2e factor is treated as zero. "
+                        "Use only with valid sustainability certification and evidence."
+                    ),
+                ),
             },
-        },
-        key="segment_editor",
-        on_change=apply_segment_editor_edit,
-    )
-    if editor_state_has_changes(st.session_state.get("segment_editor")):
-        st.session_state["segments_df"] = sanitize_segments(segment_editor, codes_now)
+            key=fuel_editor_widget_key(),
+        )
 
-    c1, c2, c3 = st.columns([1, 1, 2])
-    with c1:
-        if st.button("Reset portfolio to sample"):
-            st.session_state["fuels_df"] = default_fuels()
-            st.session_state["segments_df"] = default_segments(fuel_codes(st.session_state["fuels_df"]))
-            st.session_state["_fuel_editor_source_df"] = st.session_state["fuels_df"].copy(deep=True)
-            st.session_state["_segment_editor_source_df"] = st.session_state["segments_df"].copy(deep=True)
-            st.session_state.pop("segment_editor", None)
-            st.session_state["_fuel_editor_revision"] = int(st.session_state.get("_fuel_editor_revision", 0)) + 1
-            queue_sidebar_fuel_price_sync(st.session_state["fuels_df"])
-            st.rerun()
-    with c2:
-        if st.button("Add empty segment"):
-            blank = default_segments(codes_now).iloc[[0]].copy()
-            blank.loc[:, "Segment"] = "New segment"
-            blank.loc[:, "Annual trips"] = 1
-            for code in codes_now:
-                blank.loc[:, f"{code}_t_trip"] = 0.0
-            st.session_state["segments_df"] = pd.concat([st.session_state["segments_df"], blank], ignore_index=True)
-            st.session_state["_segment_editor_source_df"] = st.session_state["segments_df"].copy(deep=True)
-            st.session_state.pop("segment_editor", None)
-            st.rerun()
+        segment_editor_source = sanitize_segments(
+            st.session_state["_segment_editor_source_df"],
+            codes_now,
+        ).copy(deep=True)
+        st.data_editor(
+            segment_editor_source,
+            use_container_width=True,
+            hide_index=True,
+            num_rows="dynamic",
+            column_config={
+                "Segment": st.column_config.TextColumn("Segment"),
+                "Route scope": st.column_config.SelectboxColumn(
+                    "Route scope",
+                    options=list(ROUTE_SCOPES.keys()),
+                    required=True,
+                ),
+                "Annual trips": st.column_config.NumberColumn(
+                    "Annual trips", min_value=0.0, step=1.0
+                ),
+                "Low-carbon first": st.column_config.CheckboxColumn(
+                    "FuelEU low-carbon first"
+                ),
+                "OPS_MWh_trip": st.column_config.NumberColumn(
+                    "OPS [MWh/trip]", min_value=0.0, step=10.0
+                ),
+                **{
+                    f"{code}_t_trip": st.column_config.NumberColumn(
+                        f"{code} [t/trip]", min_value=0.0, step=1.0
+                    )
+                    for code in codes_now
+                },
+            },
+            key="segment_editor",
+        )
+
+        st.caption(
+            "Run analysis submits every pending table cell in one batch and applies all "
+            "current sidebar inputs to the results."
+        )
+        c1, c2, c3 = st.columns([1, 1, 2])
+        with c1:
+            st.form_submit_button(
+                "Reset portfolio to sample",
+                on_click=reset_portfolio_form,
+                use_container_width=True,
+            )
+        with c2:
+            st.form_submit_button(
+                "Add empty segment",
+                on_click=add_empty_segment_from_form,
+                use_container_width=True,
+            )
+        with c3:
+            st.form_submit_button(
+                "▶ Run analysis",
+                type="primary",
+                on_click=submit_portfolio_for_analysis,
+                use_container_width=True,
+                help=(
+                    "Submit every pending table cell and apply all current sidebar "
+                    "inputs, then recalculate the results."
+                ),
+            )
+
+    portfolio_form_message = st.session_state.pop("_portfolio_form_message", None)
+    if portfolio_form_message:
+        st.info(portfolio_form_message)
 
     draft_snapshot = make_analysis_snapshot(
         st.session_state["fuels_df"],
