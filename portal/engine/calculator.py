@@ -421,6 +421,33 @@ def fuel_choice_notices(scenario):
     return notices
 
 
+def strategy_actions(result):
+    """Describe actual ledger actions, independently of the allowed policy."""
+    fuel_switch = any(d["blend"] > 1e-9 for d in result["decisions"])
+    electricity = fsum(row.get("electricity_mwh", 0) for row in result["annual"])
+    external = fsum(row.get("pool_buy_t", 0) for row in result["rows"])
+    internal = fsum(max(0, row.get("pool_transfer_t", 0)) for row in result["rows"])
+    name = "Alternative sea fuels" if fuel_switch else "Current sea fuels"
+    if electricity > 1e-9:
+        name += " + shore power"
+    if external > 1e-9 and internal > 1e-9:
+        name += " + fleet and external pooling"
+        pooling = "Fleet balances are pooled and external surplus is purchased. Pooling cost is the external purchase cost."
+    elif external > 1e-9:
+        name += " + external pooling"
+        pooling = "External surplus is purchased at the entered pool price. See the annual pooling cost and ship ledger."
+    elif internal > 1e-9:
+        name += " + fleet pooling"
+        pooling = "Internal fleet pooling is used. No external surplus is purchased, so external pooling cost is zero."
+    elif result["residual_deficit_t"] > 1e-9:
+        pooling = "No pooling is used. Residual GHG-intensity deficits are settled with penalties."
+    else:
+        pooling = "No pooling is needed after the selected fuel, shore-power and bank choices. No external surplus is purchased."
+    return {"name": name, "pooling_note": pooling, "electricity_mwh": electricity,
+            "external_pool_t": external, "internal_pool_t": internal,
+            "pooling_used": external > 1e-9 or internal > 1e-9}
+
+
 def compare(scenario):
     scenario.validate()
     zero = [(0, False)] * len(scenario.vessels)
@@ -430,14 +457,17 @@ def compare(scenario):
     strategies = []
     for key, name, result in [
         ("baseline", "Current fuels · settle deficits", baseline),
-        ("pool", "Current fuels · arrange pooling", simulate(scenario, zero, True)),
+        ("pool", "Current fuels · pooling allowed", simulate(scenario, zero, True)),
         ("fuel", "Fuel & shore-power choices", optimize(scenario, False)),
-        ("combined", "Fuel choices & pooling", optimize(scenario, True)),
+        ("combined", "Fuel & shore-power choices · pooling allowed", optimize(scenario, True)),
     ]:
         if result:
             result.update(key=key, name=name, savings=baseline["npv"] - result["npv"])
+            result["actions"] = strategy_actions(result)
             strategies.append(result)
-    strategies.sort(key=lambda s: (s["npv"], s["key"] != "baseline", s["key"]))
+    # A policy permitting pooling is not evidence that pooling was used. For
+    # identical costs prefer the reference, then a policy without pooling.
+    strategies.sort(key=lambda s: (s["npv"], s["key"] != "baseline", s["use_pool"], s["key"]))
     coverage_limits = []
     warnings = ["Prices and consumption are planning assumptions; prices are not a live market feed.",
                 "Lowest evaluated cost selects replacement separately by current sea fuel. The search varies or transfers replacement in steps of 5% of total baseline sea energy, including exact fuel-exhaustion and vessel-limit endpoints. Two starts, up to three fleet passes and three allocation passes per ship are used. Decisions are fixed over the horizon; a global optimum is not guaranteed.",

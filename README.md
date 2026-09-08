@@ -59,6 +59,10 @@ Operator access is privileged across companies. Customer accounts are not staff.
    factors and a separate ETS zero-rating review. Record pilot and conversion costs.
 4. Compare four strategies. Select any strategy to inspect costs, vessel actions,
    banking, residual deficits, price sensitivity and assumptions.
+   Policy names describe permitted choices; the recommendation names the actions
+   actually selected. Shore-power electricity is separate from pooling purchases.
+   A pooling-enabled policy may need no pooling. Equal-cost choices prefer the
+   reference first, then a policy without pooling.
 5. Download a CSV or complete JSON audit record, or print the report. Editing a
    case creates a new revision; previous reports keep their original inputs.
 

@@ -37,9 +37,12 @@ dated 2026-09-07 (`6.0.0`, `EU-2026-09-07`).
 
 ## Current Django-only verification · 2026-09-08
 
-Engine 6.4.1: 144 tests discovered, 140 passed and four optional browser tests
+Engine 6.4.2: 152 tests discovered, 148 passed and four optional browser tests
 skipped in the latest local run. This includes per-fuel replacement, high-price
 eligibility regressions, saved-input exclusion notices and tenant-scoped exports.
+The strategy-action regression reproduces the shore-power/no-pooling case,
+prefers the non-pooling policy at equal cost, distinguishes internal and zero-price
+external pooling, and verifies old reports render without snapshot changes.
 Earlier browser evidence below describes earlier runs, not a new browser check.
 The repository and development setup now contain only the Django application.
 

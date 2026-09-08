@@ -273,3 +273,18 @@ physical CO2 factor remains priced under ETS even when FuelEU WtW is low.
 New results save these notices in the audit output. Earlier reports derive an
 explanation from their own saved inputs without modifying or recomputing the
 snapshot. Eligibility assertions are never enabled automatically.
+
+### Actual strategy actions (engine 6.4.2)
+
+Policy permissions are distinct from actions. Both fuel-choice policies can
+select shore power. The report names actual sea-fuel replacement, shore-power
+electricity, internal fleet transfers and external surplus purchases using the
+saved decisions and ledger. Pooling is detected from transferred/purchased
+quantities rather than cash cost: internal pooling and zero-price external
+purchases must not be described as no pooling.
+
+For equal NPV, comparison retains the reference first, then prefers a policy
+without pooling. A pooling-enabled search that selects the same no-pooling
+actions therefore cannot displace an identical non-pooling result just because
+of its internal key. Existing snapshots keep their saved winner and amounts;
+their report derives the clearer action description without recalculation.

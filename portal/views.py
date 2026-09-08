@@ -16,7 +16,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 from .engine.schema import ScenarioInput, Vessel, default_fuels
-from .engine.calculator import compare, fuel_choice_notices
+from .engine.calculator import compare, fuel_choice_notices, strategy_actions
 from .engine.rules import ENGINE_VERSION, RULESET_VERSION, CHECKED_ON, SOURCES, REDUCTIONS, REFERENCE_G
 from .forms import ScenarioForm, VesselForm, FuelForm, MemberForm, VesselImportForm
 from .imports import COLUMNS, parse_vessels
@@ -294,9 +294,10 @@ def report_context(run, request):
     notices = results.get("fuel_choice_notices")
     if notices is None:
         notices = fuel_choice_notices(ScenarioInput.from_dict(run.inputs))
-    selected = next((s for s in results["strategies"] if s["key"] == request.GET.get("strategy")), results["strategies"][0])
     maximum = max(s["npv"] for s in results["strategies"]) or 1
-    strategies = [s | {"bar_width": max(1, s["npv"] / maximum * 100)} for s in results["strategies"]]
+    strategies = [s | {"bar_width": max(1, s["npv"] / maximum * 100),
+                       "actions": s.get("actions") or strategy_actions(s)} for s in results["strategies"]]
+    selected = next((s for s in strategies if s["key"] == request.GET.get("strategy")), strategies[0])
     baseline = next(s for s in strategies if s["key"] == "baseline")
     chart = {"annual": selected["annual"], "baseline": baseline["annual"], "strategies": [{"name": s["name"], "npv": s["npv"]} for s in strategies], "rows": selected["rows"]}
     return {"run": run, "result": results, "selected": selected, "strategies": strategies, "baseline": baseline, "chart_data": chart, "sources": results.get("sources", SOURCES), "checked_on": results.get("checked_on", CHECKED_ON), "savings_percent": selected["savings"] / results["baseline_npv"] * 100 if results["baseline_npv"] else 0, "active_nav": "reports", "fuel_choice_notices": notices}
