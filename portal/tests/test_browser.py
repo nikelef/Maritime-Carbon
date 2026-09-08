@@ -1,0 +1,291 @@
+"""Optional real-browser acceptance test using an isolated Django test database.
+
+Run with RUN_BROWSER_TESTS=1 and an installed Playwright browser. On Windows,
+PLAYWRIGHT_CHANNEL=msedge uses the existing Edge installation in headless mode.
+"""
+import os
+from pathlib import Path
+import secrets
+from datetime import timedelta
+from unittest import skipUnless
+from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.contrib.staticfiles.testing import StaticLiveServerTestCase
+from django.test import override_settings
+from django.utils import timezone
+from portal.models import Company, Membership, Scenario, AnalysisRun
+
+
+@skipUnless(os.environ.get("RUN_BROWSER_TESTS") == "1", "Enable RUN_BROWSER_TESTS=1 for browser acceptance checks.")
+@override_settings(STORAGES={"default": {"BACKEND": "django.core.files.storage.FileSystemStorage"}, "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"}})
+class BrowserAcceptanceTests(StaticLiveServerTestCase):
+    def test_add_fuel_with_javascript_disabled_or_old_script(self):
+        from playwright.sync_api import sync_playwright, expect
+        from portal.engine.schema import ScenarioInput, Vessel
+        password = secrets.token_urlsafe(20)
+        company = Company.objects.create(name="Fallback browser fixture", status="active", access_until=timezone.localdate()+timedelta(days=30))
+        user = get_user_model().objects.create_user("fallback_browser", password=password)
+        Membership.objects.create(company=company, user=user, role="analyst")
+        cases = [(mode, Scenario.objects.create(company=company, name=mode, created_by=user,
+                  inputs=ScenarioInput(vessels=[Vessel(name="Fallback vessel", berth_t=0, intra_share=1, extra_share=0)]).to_dict()))
+                 for mode in ("no-javascript", "old-script")]
+        with sync_playwright() as driver:
+            browser = driver.chromium.launch(headless=True, channel=os.environ.get("PLAYWRIGHT_CHANNEL") or None)
+            for mode, scenario in cases:
+                with self.subTest(mode=mode):
+                    page = browser.new_page(java_script_enabled=mode != "no-javascript")
+                    if mode == "old-script":
+                        # Emulate the previous script, which knows only about the
+                        # save button and has no handler for adding a fuel row.
+                        old_script = 'document.querySelectorAll("form").forEach(form => form.addEventListener("submit", () => { const b = form.querySelector("button[data-busy]"); if (b) { b.textContent = b.dataset.busy; b.disabled = true; } }));'
+                        page.route("**/static/portal/app.js*", lambda route: route.fulfill(status=200, content_type="text/javascript", body=old_script))
+                    page.goto(self.live_server_url + "/accounts/login/")
+                    page.get_by_label("Username").fill(user.username)
+                    page.get_by_label("Password").fill(password)
+                    page.get_by_role("button", name="Sign in securely").click()
+                    page.get_by_role("link", name=mode, exact=True).click()
+                    page.get_by_role("link", name="Edit", exact=True).click()
+                    page.get_by_label("Vessel name").fill("Uncommitted draft")
+                    page.get_by_label("Gross tonnage").fill("")
+                    page.locator("#id_consumption-0-tonnes").fill("1111")
+                    page.get_by_role("button", name="Add another fuel").click()
+                    expect(page.locator("[data-sea-fuel-row]:visible")).to_have_count(2)
+                    expect(page.get_by_label("Vessel name")).to_have_value("Uncommitted draft")
+                    expect(page.get_by_label("Gross tonnage")).to_have_value("")
+                    expect(page.locator("#id_consumption-0-tonnes")).to_have_value("1111")
+                    page.get_by_label("Gross tonnage").fill("25000")
+                    page.locator("#id_consumption-1-voyage").select_option("2")
+                    page.locator("#id_consumption-1-fuel").select_option("MGO")
+                    page.locator("#id_consumption-1-leg").select_option("eu_berth_t")
+                    page.locator("#id_consumption-1-tonnes").fill("200")
+                    page.get_by_role("button", name="Save vessel").click()
+                    expect(page.get_by_role("heading", name="Every ship keeps its own balance.")).to_be_visible()
+                    page.close()
+            browser.close()
+        for _, scenario in cases:
+            scenario.refresh_from_db()
+            self.assertEqual(scenario.revision, 2)
+            self.assertEqual(scenario.inputs["vessels"][0]["consumption"], [{"voyage": 1, "fuel": "VLSFO", "intra_t": 1111}, {"voyage": 2, "fuel": "MGO", "eu_berth_t": 200}])
+
+    def test_multiple_sea_fuels_add_remove_save_and_mobile(self):
+        from playwright.sync_api import sync_playwright, expect
+        from portal.engine.schema import ScenarioInput, Vessel
+        password = secrets.token_urlsafe(20)
+        company = Company.objects.create(name="Mixed-fuel browser fixture", status="active", access_until=timezone.localdate()+timedelta(days=30))
+        user = get_user_model().objects.create_user("mixed_browser", password=password)
+        Membership.objects.create(company=company, user=user, role="analyst")
+        scenario = Scenario.objects.create(company=company, name="Mixed-fuel browser case", created_by=user,
+                                           inputs=ScenarioInput(end_year=2026, scope_confirmed=True, vessels=[Vessel(name="Mixed oil vessel", berth_t=0, intra_share=1, extra_share=0)]).to_dict())
+        artifact_dir = Path(settings.BASE_DIR) / "test-artifacts"
+        artifact_dir.mkdir(exist_ok=True)
+        errors = []
+        with sync_playwright() as driver:
+            browser = driver.chromium.launch(headless=True, channel=os.environ.get("PLAYWRIGHT_CHANNEL") or None)
+            page = browser.new_page(viewport={"width": 1440, "height": 1000}, device_scale_factor=1)
+            page.on("pageerror", lambda error: errors.append(str(error)))
+            page.goto(self.live_server_url + "/accounts/login/")
+            page.get_by_label("Username").fill(user.username)
+            page.get_by_label("Password").fill(password)
+            page.get_by_role("button", name="Sign in securely").click()
+            page.get_by_role("link", name=scenario.name, exact=True).click()
+            page.get_by_role("link", name="Edit", exact=True).click()
+            self.assertEqual(page.locator(".consumption-table thead th").all_text_contents()[:4], ["Voyage", "Voyage / berth category", "Fuel type", "Tonnes / year"])
+            expect(page.locator("#id_consumption-0-voyage")).to_have_value("1")
+            expect(page.locator("#id_consumption-0-fuel")).to_have_value("VLSFO")
+            page.locator("#id_consumption-0-tonnes").fill("600")
+            page.get_by_role("button", name="Add another fuel").click()
+            page.locator("#id_consumption-1-fuel").select_option("HSFO")
+            page.locator("#id_consumption-1-leg").select_option("extra_t")
+            page.locator("#id_consumption-1-tonnes").fill("1000")
+            page.get_by_role("button", name="Add another fuel").click()
+            page.locator("#id_consumption-2-voyage").select_option("2")
+            page.locator("#id_consumption-2-fuel").select_option("HSFO")
+            page.locator("#id_consumption-2-leg").select_option("eu_berth_t")
+            page.locator("#id_consumption-2-tonnes").fill("100")
+            page.locator("#id_consumption-2-ops_share").fill("25")
+            # A newly added, unfinished row must be removable without blocking save.
+            page.get_by_role("button", name="Add another fuel").click()
+            page.locator("#id_consumption-3-DELETE").check()
+            expect(page.locator("[data-sea-fuel-row]:visible")).to_have_count(3)
+            page.get_by_role("heading", name="Consumption & voyage mix").scroll_into_view_if_needed()
+            page.locator("[data-sea-fuel-editor]").screenshot(path=str(artifact_dir / "multi-fuel-desktop.png"))
+            page.set_viewport_size({"width": 390, "height": 844})
+            page.emulate_media(reduced_motion="reduce")
+            self.assertTrue(page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1"))
+            page.get_by_role("heading", name="Consumption & voyage mix").scroll_into_view_if_needed()
+            page.locator("[data-sea-fuel-editor]").screenshot(path=str(artifact_dir / "multi-fuel-mobile.png"))
+            page.get_by_role("button", name="Save vessel").click()
+            expect(page.get_by_role("heading", name="Every ship keeps its own balance.")).to_be_visible()
+            page.get_by_role("link", name="Edit", exact=True).click()
+            expect(page.locator("[data-sea-fuel-row]:visible")).to_have_count(3)
+            expect(page.locator("#id_consumption-2-ops_share")).to_have_value("25.0")
+            expect(page.locator("#id_consumption-2-voyage")).to_have_value("2")
+            page.locator("#id_consumption-2-voyage").select_option("1")
+            page.locator("#id_consumption-2-leg").select_option("extra_t")
+            page.get_by_role("button", name="Save vessel").click()
+            expect(page.get_by_text("Combine HSFO consumption for the same voyage/berth category in Voyage 1 into one row.")).to_be_visible()
+            expect(page.locator("#id_consumption-2-tonnes")).to_have_value("100.0")
+            page.locator("#id_consumption-2-voyage").select_option("2")
+            page.locator("#id_consumption-2-fuel").select_option("HSFO")
+            page.locator("#id_consumption-2-leg").select_option("eu_berth_t")
+            page.get_by_role("button", name="Save vessel").click()
+            page.get_by_role("button", name="Compare strategies").click()
+            expect(page.get_by_role("heading", name="The cost of your next move.")).to_be_visible()
+            browser.close()
+        scenario.refresh_from_db()
+        self.assertEqual([entry["fuel"] for entry in scenario.inputs["vessels"][0]["consumption"]], ["VLSFO", "HSFO", "HSFO"])
+        self.assertEqual([entry["voyage"] for entry in scenario.inputs["vessels"][0]["consumption"]], [1, 1, 2])
+        self.assertEqual(len(AnalysisRun.objects.get(scenario=scenario).inputs["vessels"][0]["consumption"]), 3)
+        self.assertEqual(errors, [])
+
+    def test_customer_workflow_desktop_and_mobile(self):
+        from playwright.sync_api import sync_playwright, expect
+        password = secrets.token_urlsafe(20)
+        company = Company.objects.create(name="Visual test company", status="active", access_until=timezone.localdate() + timedelta(days=30))
+        user = get_user_model().objects.create_user("visual_test_admin", password=password)
+        Membership.objects.create(company=company, user=user, role="admin")
+        artifact_dir = Path(settings.BASE_DIR) / "test-artifacts"
+        artifact_dir.mkdir(exist_ok=True)
+        errors = []
+        with sync_playwright() as driver:
+            browser = driver.chromium.launch(headless=True, channel=os.environ.get("PLAYWRIGHT_CHANNEL") or None)
+            page = browser.new_page(viewport={"width": 1440, "height": 1000}, device_scale_factor=1)
+            page.on("pageerror", lambda error: errors.append(str(error)))
+            page.on("console", lambda message: errors.append(message.text) if message.type == "error" else None)
+            page.goto(self.live_server_url + "/accounts/login/")
+            page.screenshot(path=str(artifact_dir / "login-desktop.png"))
+            page.get_by_label("Username").fill("visual_test_admin")
+            page.get_by_label("Password").fill(password)
+            page.get_by_role("button", name="Sign in securely").click()
+            expect(page.get_by_role("heading", name="A clearer view of carbon costs.")).to_be_visible()
+            page.get_by_role("link", name="+ New decision case").click()
+            page.get_by_label("Decision case name").fill("Browser acceptance fleet")
+            page.get_by_label("I have checked that these ordinary EU voyage shares").check()
+            page.get_by_role("button", name="Create case & add fleet").click()
+            page.get_by_role("link", name="Add your first vessel").click()
+            page.get_by_label("Vessel name").fill("Acceptance Horizon")
+            page.get_by_label("Technical compatibility and blend limit have been checked").check()
+            page.get_by_role("button", name="Save vessel").click()
+            fuel_row = page.get_by_role("row").filter(has=page.get_by_text("HVO · supplier pathway required", exact=True))
+            fuel_row.get_by_role("link", name="Review").click()
+            page.get_by_label("RED sustainability and FuelEU pathway eligibility").check()
+            page.get_by_label("Separately confirm ETS CO₂ zero-rating eligibility").check()
+            page.get_by_label("Evidence / pathway reference").fill("TEST ONLY: illustrative eligible non-food/feed HVO pathway.")
+            page.get_by_role("button", name="Save fuel assumptions").click()
+            page.get_by_role("button", name="Compare strategies").click()
+            expect(page.get_by_role("heading", name="The cost of your next move.")).to_be_visible()
+            page.screenshot(path=str(artifact_dir / "customer-report-desktop.png"))
+            page.locator(".strategy-option").filter(has_text="Current fuels · arrange pooling").click()
+            expect(page.locator(".recommendation h2")).to_have_text("Current fuels · arrange pooling")
+            with page.expect_download() as download:
+                page.get_by_role("link", name="Download CSV").click()
+            download.value.save_as(str(artifact_dir / "acceptance-report.csv"))
+            with page.expect_download() as download:
+                page.get_by_role("link", name="Audit file").click()
+            download.value.save_as(str(artifact_dir / "acceptance-audit.json"))
+            page.get_by_role("link", name="Company & team").click()
+            page.get_by_label("Username").fill("visual_test_viewer")
+            page.get_by_label("Work email").fill("viewer@example.test")
+            page.get_by_label("Role").select_option("viewer")
+            page.get_by_label("Initial password").fill(secrets.token_urlsafe(20))
+            page.get_by_role("button", name="Create user").click()
+            expect(page.get_by_role("cell", name="visual_test_viewer", exact=True)).to_be_visible()
+            page.goto(self.live_server_url + "/demo/")
+            expect(page.locator("#annual-chart")).to_be_visible()
+            page.screenshot(path=str(artifact_dir / "example-fleet-desktop.png"))
+            page.set_viewport_size({"width": 390, "height": 844})
+            page.emulate_media(reduced_motion="reduce")
+            expect(page.locator("#navigation")).to_have_css("transform", "matrix(1, 0, 0, 1, -230, 0)")
+            page.screenshot(path=str(artifact_dir / "example-fleet-mobile.png"))
+            self.assertTrue(page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1"))
+            page.get_by_role("button", name="Toggle navigation").click()
+            expect(page.locator("#navigation")).to_have_class("sidebar is-open")
+            page.get_by_role("link", name="Overview", exact=False).click()
+            expect(page.get_by_role("heading", name="A clearer view of carbon costs.")).to_be_visible()
+            self.assertTrue(page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1"))
+            page.set_viewport_size({"width": 1440, "height": 1000})
+            page.get_by_role("button", name="Sign out").click()
+            expect(page.get_by_role("heading", name="Welcome back.")).to_be_visible()
+            browser.close()
+        self.assertEqual(errors, [])
+
+    def test_lng_to_rfnbo_customer_workflow_and_mobile_forms(self):
+        from playwright.sync_api import sync_playwright, expect
+        password = secrets.token_urlsafe(20)
+        company = Company.objects.create(name="LNG and RFNBO browser fixture", status="active", access_until=timezone.localdate() + timedelta(days=30))
+        user = get_user_model().objects.create_user("transition_test_admin", password=password)
+        Membership.objects.create(company=company, user=user, role="admin")
+        artifact_dir = Path(settings.BASE_DIR) / "test-artifacts"
+        artifact_dir.mkdir(exist_ok=True)
+        errors = []
+        with sync_playwright() as driver:
+            browser = driver.chromium.launch(headless=True, channel=os.environ.get("PLAYWRIGHT_CHANNEL") or None)
+            page = browser.new_page(viewport={"width": 1440, "height": 1000}, device_scale_factor=1)
+            page.on("pageerror", lambda error: errors.append(str(error)))
+            page.goto(self.live_server_url + "/accounts/login/")
+            page.get_by_label("Username").fill(user.username)
+            page.get_by_label("Password").fill(password)
+            page.get_by_role("button", name="Sign in securely").click()
+            page.get_by_role("link", name="+ New decision case").click()
+            page.get_by_label("Decision case name").fill("LNG to renewable methane")
+            page.get_by_label("First reporting year").fill("2033")
+            page.get_by_label("Last reporting year").fill("2034")
+            page.get_by_text("Possible 2% renewable e-fuel requirement from 2034", exact=True).click()
+            page.get_by_label("How to include this possible requirement").select_option("assume_active")
+            page.get_by_label("Assumed shortfall cost").fill("1000")
+            page.get_by_label("Reason for your assumption / source").fill("TEST ONLY: prospective price-difference assumption, no exemption/pool.")
+            page.get_by_label("I have checked that these ordinary EU voyage shares").check()
+            page.get_by_role("button", name="Create case & add fleet").click()
+            page.get_by_role("link", name="Add your first vessel").click()
+            page.get_by_label("Vessel name").fill("Methane Transition")
+            for index in range(3):
+                page.locator(f"#id_consumption-{index}-fuel").select_option("LNG")
+            page.get_by_text("LNG engine types · sea and berth", exact=True).click()
+            page.get_by_label("Current LNG / bio-LNG / e-LNG engine").select_option("diesel_slow")
+            for index, (leg, tonnes) in enumerate((("intra_t", "15"), ("extra_t", "30"), ("outside_t", "5")), start=4):
+                page.get_by_role("button", name="Add another fuel").click()
+                page.locator(f"#id_consumption-{index}-fuel").select_option("MGO")
+                page.locator(f"#id_consumption-{index}-leg").select_option(leg)
+                page.locator(f"#id_consumption-{index}-tonnes").fill(tonnes)
+            page.get_by_label("Alternative to evaluate").select_option("E_LNG")
+            page.get_by_label("Alternative LNG / bio-LNG / e-LNG engine").select_option("diesel_slow")
+            page.get_by_label("Maximum alternative energy share").fill("100")
+            page.get_by_label("Technical compatibility and blend limit").check()
+            page.get_by_label("Alternative system MGO pilot energy share").fill("2")
+            page.get_by_label("Fuel system, pilot consumption, efficiency and investment").check()
+            page.get_by_label("Fuel-system technical review reference").fill("TEST ONLY: approved dual-fuel system, pilot and cost basis.")
+            page.screenshot(path=str(artifact_dir / "lng-vessel-desktop.png"), full_page=True)
+            page.get_by_role("button", name="Save vessel").click()
+            gas_row = page.get_by_role("row").filter(has=page.get_by_text("RFNBO · e-LNG", exact=True))
+            gas_row.get_by_role("link", name="Review").click()
+            expect(page.get_by_label("Lower calorific value")).to_be_disabled()
+            page.get_by_label("FuelEU well-to-tank factor").fill("-45")
+            page.get_by_label("Fuel price").fill("400")  # Deliberately inexpensive test fuel so switching wins.
+            page.get_by_label("RED sustainability and FuelEU pathway eligibility").check()
+            page.get_by_label("Separately confirm ETS CO₂ zero-rating eligibility").check()
+            page.get_by_label("Evidence / pathway reference").fill("TEST ONLY: RFNBO proof with FuelEU-adjusted WtT and ETS evidence.")
+            page.get_by_role("button", name="Save fuel assumptions").click()
+            page.get_by_role("button", name="Compare strategies").click()
+            expect(page.get_by_role("heading", name="The cost of your next move.")).to_be_visible()
+            expect(page.get_by_text("Fuel pathways, methane & RFNBO ledger", exact=True)).to_be_visible()
+            page.screenshot(path=str(artifact_dir / "lng-rfnbo-report-desktop.png"), full_page=True)
+            page.set_viewport_size({"width": 390, "height": 844})
+            page.emulate_media(reduced_motion="reduce")
+            self.assertTrue(page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1"))
+            page.screenshot(path=str(artifact_dir / "lng-rfnbo-report-mobile.png"))
+            page.get_by_role("link", name="Back to decision case").click()
+            ammonia_row = page.get_by_role("row").filter(has=page.get_by_text("RFNBO · e-ammonia · combustion", exact=True))
+            ammonia_row.get_by_role("link", name="Review").click()
+            expect(page.get_by_label("Combustion N₂O factor")).to_have_value("")
+            expect(page.get_by_label("Measured CH₄ / N₂O factors")).to_be_visible()
+            self.assertTrue(page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1"))
+            page.screenshot(path=str(artifact_dir / "rfnbo-evidence-mobile.png"), full_page=True)
+            browser.close()
+        self.assertEqual(errors, [])
+        scenario = Scenario.objects.get(company=company)
+        run = AnalysisRun.objects.get(scenario=scenario)
+        rows = run.results["strategies"][0]["rows"]
+        self.assertTrue(all(row["alternative_t"] > 0 for row in rows))
+        self.assertEqual([row["rfnbo_reward"] for row in rows], [2, 1])
+        self.assertTrue(all(row["pilot_t"] > 0 for row in rows))
+        self.assertTrue(all(row["ets_t"] > 0 for row in rows))

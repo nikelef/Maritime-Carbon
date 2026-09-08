@@ -1,0 +1,8 @@
+<tr class="consumption-row" data-sea-fuel-row{% if fuel_form.DELETE.value %} hidden{% endif %}>
+  <td><label class="sr-only" for="{{ fuel_form.voyage.id_for_label }}">Voyage</label>{{ fuel_form.voyage }}{{ fuel_form.voyage.errors }}{{ fuel_form.non_field_errors }}</td>
+  <td><label class="sr-only" for="{{ fuel_form.leg.id_for_label }}">Voyage / berth category</label>{{ fuel_form.leg }}{{ fuel_form.leg.errors }}</td>
+  <td><label class="sr-only" for="{{ fuel_form.fuel.id_for_label }}">Fuel type</label>{{ fuel_form.fuel }}{{ fuel_form.fuel.errors }}</td>
+  <td><label class="sr-only" for="{{ fuel_form.tonnes.id_for_label }}">Annual tonnes</label>{{ fuel_form.tonnes }}{{ fuel_form.tonnes.errors }}</td>
+  <td data-ops-cell><label class="sr-only" for="{{ fuel_form.ops_share.id_for_label }}">EU berth replaceable by shore power · %</label>{{ fuel_form.ops_share }}{{ fuel_form.ops_share.errors }}</td>
+  <td class="consumption-remove"><label for="{{ fuel_form.DELETE.id_for_label }}">{{ fuel_form.DELETE }} <span>Remove</span></label></td>
+</tr>

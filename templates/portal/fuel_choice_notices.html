@@ -1,0 +1,9 @@
+{% for notice in fuel_choice_notices %}
+<div class="notice warning" data-fuel-choice-notice>
+  <strong>{{ notice.vessel }}: {% if notice.excluded %}{{ notice.fuel }} excluded from fuel comparison{% else %}{{ notice.fuel }} evaluated without ETS CO₂ zero-rating{% endif %}</strong>
+  {% for reason in notice.reasons %}<p>{{ reason }}</p>{% endfor %}
+  {% if notice.excluded %}<p>Keeping current fuels here does not establish that they are cheaper than {{ notice.fuel }}. Increasing EUA or pooling prices cannot enable an excluded alternative.</p>{% endif %}
+  {% if saved_notice %}<p>This status reflects the inputs saved with this report. After editing assumptions, run a new comparison.</p>{% endif %}
+  {% if can_edit and fuel_case_id %}<p><a href="{% url 'fuel_edit' fuel_case_id notice.fuel %}">Review {{ notice.fuel }} eligibility and ETS settings →</a> · <a href="{% url 'vessel_edit' fuel_case_id notice.vessel_index %}">Review vessel limits →</a></p>{% endif %}
+</div>
+{% endfor %}

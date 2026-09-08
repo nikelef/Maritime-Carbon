@@ -1,0 +1,1 @@
+{% extends 'base.html' %}{% block content %}<div class="empty-state panel"><span class="eyebrow">COMPANY ACCESS</span><h1>Let’s get your workspace ready.</h1><p>{{ reason }}</p>{% if user.is_staff %}<a class="button primary" href="{% url 'admin:index' %}">Open operator console</a>{% endif %}<a class="button" href="{% url 'demo' %}">View example fleet</a></div>{% endblock %}

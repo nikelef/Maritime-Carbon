@@ -1,5 +1,24 @@
-.streamlit/secrets.toml
-.carbon_optimizer_scenarios.json
+# Runtime data and local development files must not be published.
 __pycache__/
 *.py[cod]
-streamlit.*.log
+.venv/
+*.sqlite3
+*.sqlite3-*
+staticfiles/
+.env
+.env.*
+!.env.example
+*.log
+.pytest_cache/
+test-artifacts/
+.planning/
+.tmp/
+.tmp-tests/
+carbon readme.txt
+*.pem
+*.key
+*.p12
+*.pfx
+secrets.toml
+credentials*.json
+service-account*.json

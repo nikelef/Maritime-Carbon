@@ -1,0 +1,11 @@
+<fieldset class="sea-fuel-row" data-sea-fuel-row{% if fuel_form.DELETE.value %} hidden{% endif %}>
+  <legend>Sea fuel</legend>
+  {{ fuel_form.non_field_errors }}
+  <div class="form-grid">
+    {% include 'portal/field.html' with field=fuel_form.fuel %}
+    {% include 'portal/field.html' with field=fuel_form.sea_t %}
+    {% include 'portal/field.html' with field=fuel_form.intra_share %}
+    {% include 'portal/field.html' with field=fuel_form.extra_share %}
+  </div>
+  <div class="field checkbox-field"><label for="{{ fuel_form.DELETE.id_for_label }}">{{ fuel_form.DELETE }}<span>Remove this fuel</span></label></div>
+</fieldset>

@@ -1,115 +1,179 @@
-# Maritime Carbon Cost Optimizer
+# Maritime Carbon
 
-Subscription-ready Streamlit app for minimizing a shipowner's combined **FuelEU Maritime** and **EU ETS** exposure. The app compares fuel switching, pooling, banking, OPS berth electrification, and paying the residual regulatory cost across a 2025-2050 horizon.
+A customer application for comparing fleet FuelEU Maritime and EU ETS planning
+costs. The supported application is now **Django**, with password accounts,
+company workspaces, user roles, subscription expiry, saved decision cases, and
+immutable calculation snapshots.
 
-> Planning model only. Final compliance must follow the binding legal texts, verified monitoring plans, verifier instructions, and company-approved methodology.
+## Try the application
 
-## What Changed In v4.0
-
-- Rebuilt the UI as a decision cockpit rather than a simple calculator.
-- Added a deterministic strategy engine that ranks:
-  - pay as-is;
-  - buy FuelEU pool surplus;
-  - switch fossil fuel to biofuel or RFNBO blends;
-  - combine fuel switching with residual pooling;
-  - add OPS berth electrification where relevant.
-- Added portfolio-level voyage inputs with per-trip fuel quantities and annual trip scaling.
-- Added editable fuel library with LCV, WtW intensity, ETS CO2/CH4/N2O factors, price, RFNBO flag, and supply caps.
-- Added **HSFO** as a first-class fuel option and changed the sample vessel profile to burn HSFO on the main legs.
-- Expanded the default alternative-fuel library with HVO, FAME, UCOME, bio-methanol, advanced bio-oil, LBM, e-methanol, e-ammonia, and RFNBO hydrogen.
-- Added sidebar help tooltips for the economic and optimizer inputs.
-- Exposed fuel prices in the sidebar; these prices feed the `Total cost including fuel` objective.
-- Added Portfolio-tab current FuelEU/EU ETS cost graphics by segment across the selected period.
-- Portfolio segment results retain the FuelEU compliance sign: deficits/costs are positive, while surpluses and their penalty-equivalent benefit are negative and reduce net regulatory cost.
-- Added Portfolio-tab total yearly cost chart with regulatory cost, fuel cost, pooling cost, and total cost.
-- Added Portfolio-tab GFI line chart showing attained GFI against the FuelEU limit across the selected period.
-- Set the default selected period to 2025-2030; all charts/tables use that period except the GFI chart, which remains fixed at 2025-2050.
-- Reworded strategy labels so fuel-switch options read as explicit replacements, for example `Replace 15% of HSFO with 100% FAME`.
-- Added graphs for strategy ranking, annual cost stack, FuelEU intensity pathway, energy mix, pooling need, and regulatory timeline.
-- Added a subscription/export tab with scenario save/load and decision-case JSON export.
-
-## Included Regulatory Scope
-
-Regulatory baseline checked on **2026-05-21** against official European Commission, EUR-Lex, and EMSA material.
-
-Implemented in the cost engine:
-
-- FuelEU Maritime Regulation (EU) 2023/1805 GHG-intensity pathway from the 91.16 gCO2e/MJ reference:
-  - 2025: 2%
-  - 2030: 6%
-  - 2035: 14.5%
-  - 2040: 31%
-  - 2045: 62%
-  - 2050: 80%
-- FuelEU WtW fuel intensity and scoped energy by route:
-  - 100% intra-EU/EEA and EU port stay;
-  - 50% EU/non-EU cross-border voyages;
-  - optional low-carbon-first allocation for FuelEU cross-border energy.
-- FuelEU RFNBO reward factor modeled as 2 through 2033 and 1 from 2034.
-- FuelEU pooling economics as a private surplus transaction.
-- FuelEU banking as carry-forward of positive compliance balance.
-- EU ETS maritime scope:
-  - 100% intra-EU and EU port emissions;
-  - 50% EU/non-EU voyage emissions.
-- EU ETS phase-in in this 2025-2050 model:
-  - 2025 emissions: 70%;
-  - 2026 onward: 100%.
-- EU ETS gases:
-  - CO2 only for 2025 in this app;
-  - CO2 + CH4 + N2O from 2026 onward, using editable GWP100 assumptions.
-  - the `ETS zero if certified` fuel checkbox zero-rates that fuel's ETS CO2e factor when valid certification evidence applies.
-- OPS as an operational fuel-replacement strategy for berth energy.
-- HSFO economics as a normal fuel option in the editable fuel library.
-- Fuel prices by fuel type. Fuel cost is calculated from annual tonnes consumed, editable `Price_EUR_t`, and the annual fuel price escalation assumption.
-
-Depicted but not fully monetized:
-
-- FuelEU borrowing.
-- FuelEU RFNBO subtarget penalties.
-- FuelEU OPS port-call penalties and exemptions.
-- Verifier workflows, FuelEU database submission, monitoring-plan approvals, and company-level ETS administration.
-- RED/RFNBO sustainability evidence validation.
-- Norway/Iceland FuelEU EEA timing delays, neighboring container-transhipment port rules, ship/voyage exemptions, and derogations.
-
-Official sources linked inside the app:
-
-- European Commission FuelEU Maritime
-- European Commission FuelEU Q&A
-- Regulation (EU) 2023/1805
-- Commission Implementing Regulation (EU) 2026/394 on the FuelEU database
-- European Commission EU ETS maritime
-- EMSA ETS FAQ
-- Regulation (EU) 2023/957 on MRV updates
-- Alternative Fuels Infrastructure material
-
-## Run Locally
+Python 3.12 is recommended. On Windows:
 
 ```powershell
-pip install -r requirements.txt
-streamlit run app.py
+.\run-local.ps1 -Install
 ```
 
-Then open the local URL printed by Streamlit, usually `http://localhost:8501`.
+Open [the example fleet](http://127.0.0.1:8000/demo/) or
+[the company sign-in page](http://127.0.0.1:8000/accounts/login/).
+The example uses fictional data and does not create an account.
+There is also an [LNG/RFNBO transition example](http://127.0.0.1:8000/demo/?fuels=transition)
+with an existing LNG vessel and a methanol-conversion candidate.
 
-## Commercial Deployment Notes
+To create your company and its administrator, open a second PowerShell terminal:
 
-The app is subscription-ready, not payment-provider-complete. For sale to third parties:
+```powershell
+$env:DJANGO_DEBUG = '1'
+.\.venv\Scripts\python.exe manage.py provision_company --company "Your company" --username "your.admin" --email "admin@your-company.com" --status active --days 365
+```
 
-- Deploy behind SSO or managed Streamlit authentication.
-- Store tenant scenarios in a database instead of the local `.carbon_optimizer_scenarios.json` file.
-- Connect Stripe, Paddle, or enterprise invoicing for subscription status.
-- Move emissions factors and fuel prices into a governed data-maintenance workflow.
-- Add verifier-approved exports if the product will be used beyond decision support.
+The command asks for a password securely. No default customer password exists.
+Company administrators can create colleagues in **Company & team**. Passwords
+must have at least 12 characters; users can change them from **Account**.
 
-## Repository Structure
+For the service operator's separate administration console:
+
+```powershell
+.\.venv\Scripts\python.exe manage.py createsuperuser
+```
+
+Then use `/admin/` to manage subscriptions, expiry dates and account recovery.
+Operator access is privileged across companies. Customer accounts are not staff.
+
+## Customer workflow
+
+1. Create a **decision case** with reporting years, prices, discount rate, optional
+   external-pool terms and a confirmed ordinary-EU voyage scope.
+2. Add vessels individually or import the downloadable **CSV fleet template**.
+   In the consumption table, select Voyage 1–100, then a voyage/berth category,
+   fuel, tonnes and shore-power share. Each voyage can have rows for
+   intra-EU sea, EU/non-EU sea, other sea, EU berth or non-EU berth. Enter annual
+   tonnes, including current pilot fuel in the appropriate row. A fuel may appear
+   in several voyages and categories. All entered voyages form the annual plan. All library fuels are selectable at berth as well as
+   at sea, subject to evidence and operating restrictions. EU berth rows can
+   specify the share replaceable by shore power. Existing percentages and
+   separate pilot/berth inputs are converted to rows when editing; saved reports
+   retain their original inputs. The basic CSV retains its legacy columns.
+3. Review the case's fuel library. Prices are illustrative. Renewable substitution
+   requires both recorded eligibility evidence and vessel compatibility. LNG needs
+   its engine class; RFNBOs need certified FuelEU WtT, any required measured engine
+   factors and a separate ETS zero-rating review. Record pilot and conversion costs.
+4. Compare four strategies. Select any strategy to inspect costs, vessel actions,
+   banking, residual deficits, price sensitivity and assumptions.
+5. Download a CSV or complete JSON audit record, or print the report. Editing a
+   case creates a new revision; previous reports keep their original inputs.
+
+Each account belongs to one company. Administrators manage colleagues, analysts
+edit and calculate, and viewers read and export. Subscription entitlements are
+checked on each protected request. The current supported case limit is 20 ships.
+
+## What the model includes
+
+- Reporting years 2025–2050 and the enacted FuelEU intensity-reduction pathway.
+- Annual FuelEU balances and consecutive-deficit penalties **per ship**.
+- ETS phase-in by **emissions reporting year**, proportional voyage allocation,
+  and CH4/N2O from 2026. Eligible renewable CO2 zero-rating does not erase these gases.
+- FuelEU banks retained by the originating ship, with no assumed cash or terminal value.
+- Conditional fleet/external pooling, limited by entered annual capacity.
+- Oil, HVO/FAME, LNG and bio-LNG, plus RFNBO e-LNG, e-methanol, e-ammonia,
+  hydrogen (separate fuel-cell/combustion pathways) and e-diesel.
+- Four LNG consumer/slip defaults; elective RFNBO reward through 2033; separate
+  FuelEU and ETS eligibility; no invented zero for unknown CH4/N2O factors.
+- Service-equivalent substitution with relative efficiency, MGO pilot, conversion/
+  downtime investment, extra annual costs, technical limits and shared supply caps.
+- Conditional post-2033 RFNBO shortfall reporting and explicitly assumed future-
+  rule stress tests, with assumed charges separated in the audit/export.
+- Shore electricity, generator/connection efficiency, OPS capital and annual cost.
+- Fuel, ETS, FuelEU penalties, pooling, electricity and other costs on a consistent
+  horizon, with explicit discounting and price sensitivities.
+- Reproducible inputs, SHA-256 fingerprint, engine/rule versions and source snapshots.
+
+The search selects replacement separately by current sea fuel, varying one fuel
+or transferring replacement between two fuels in steps of 5% of total baseline
+sea energy, plus exact fuel-exhaustion and vessel-limit endpoints. The overall
+ship limit is shared across fuels. Each fuel keeps its existing sea-leg mix.
+Two initial choices, up to three fleet passes and three allocation passes per
+ship are used. Reports show fuel reductions, retained tonnes and a starting
+priority among selected fuels, with equal-step total-cost comparisons across current source fuels. Decisions stay fixed over the horizon. **Lowest evaluated cost is not
+a guarantee of the globally optimal fleet strategy.**
+
+The case page and reports identify selected alternatives excluded by eligibility,
+compatibility, replacement limits or zero supply. A low WtW entry does not enable
+renewable-fuel eligibility or ETS CO2 zero-rating. Those settings must be reviewed
+in the fuel library. Reports explain their saved inputs, including older runs;
+edit the case and run a new comparison to use changed assumptions.
+
+## Regulatory boundaries
+
+The workflow supports cargo/tanker, container and passenger ships with the fuel
+pathways listed above. One alternative system per vessel is evaluated per case.
+Mixed consumer classes within a sea or berth category, measured/load-dependent
+slip, non-MGO pilot for the alternative system,
+borrowing optimization, mandatory OPS port-call penalties, voyage derogations,
+ice-class adjustments and EEA timing differences need separate assessment.
+The conditional RFNBO subtarget from 2034 is unresolved by default; an explicit
+active/inactive stress test is not confirmation of a future rule or tariff.
+Affected reports show a prominent partial-cost warning.
+
+Existing Django cases keep their original fuel library. Use **Add available fuel
+pathways** on the case page to extend it without replacing existing assumptions.
+Saved reports retain their original engine, inputs and results. See the
+[LNG/RFNBO setup guide](docs/ALTERNATIVE_FUELS.md) for the new inputs.
+
+This is a planning product, not a verifier, compliance filing service or fuel
+certification system. Review the [regulatory basis](docs/REGULATORY_BASIS.md).
+The application links directly to its primary legal and Commission sources.
+
+## Production and selling access
+
+The implemented commercial model is **company access activated by the operator**,
+suitable for invoiced subscriptions or agreed trials. It includes active/trial/
+suspended status, expiry dates and user/vessel limits. No card charges or payment
+provider are connected.
+
+Production uses PostgreSQL, HTTPS and the supplied Docker/Waitress application.
+It refuses to start without a real secret, explicit allowed hosts and a
+PostgreSQL connection. SQLite and the Django development server are local tools.
+
+Follow [DEPLOYMENT.md](docs/DEPLOYMENT.md) for setup, provisioning, backups,
+maintenance, and the remaining commercial launch requirements. The service has
+not been deployed to a public domain, independently certified, or penetration tested.
+
+## Verification
+
+```powershell
+$env:DJANGO_DEBUG = '1'
+.\.venv\Scripts\python.exe manage.py check
+.\.venv\Scripts\python.exe manage.py test portal.tests
+.\.venv\Scripts\python.exe manage.py makemigrations --check --dry-run
+.\.venv\Scripts\python.exe manage.py collectstatic --noinput
+```
+
+Optional real-browser acceptance test, using an isolated test database:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+$env:RUN_BROWSER_TESTS = '1'
+$env:PLAYWRIGHT_CHANNEL = 'msedge'
+.\.venv\Scripts\python.exe manage.py test portal.tests.test_browser
+```
+
+On Linux, install Playwright Chromium and leave `PLAYWRIGHT_CHANNEL` unset.
+Screenshots and example exports go to ignored `test-artifacts/`.
+
+GitHub Actions runs Django checks/tests, a production settings check, a dependency
+audit and a Docker image build on push and pull request. Dependabot proposes
+weekly dependency updates. See [SECURITY.md](SECURITY.md) for the security-file
+map and the secrets that must stay outside GitHub.
+
+## Structure
 
 ```text
-app.py              Main Streamlit app and strategy engine
-requirements.txt    Python dependencies
-runtime.txt         Python runtime for hosted environments
-README.md           This guide
+manage.py                    Customer application entry point
+maritime/                    Django configuration and routing
+portal/engine/               Framework-independent calculation engine
+portal/models.py             Companies, roles, cases, reports and activity
+portal/tests/                Regulatory, security, workflow and browser checks
+templates/ + static/         Responsive customer interface
+docs/                        Regulatory basis, deployment and verification
+SECURITY.md                  Security controls and production secrets guide
 ```
-
-## Disclaimer
-
-This app is an analytical planning tool. It is not legal, financial, or verifier advice. Fuel factors, ETS factors, RFNBO/biofuel certification status, and voyage eligibility must be verified for the specific vessel, monitoring plan, reporting year, and administering authority.
