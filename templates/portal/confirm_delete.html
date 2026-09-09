@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-heading"><div><span class="eyebrow">{% if scenario %}DECISION CASE{% else %}SAVED REPORT{% endif %}</span><h1>{% if scenario %}Delete decision case?{% else %}Delete saved report?{% endif %}</h1></div></div>
+<section class="panel form-panel narrow">
+{% if stale %}<div class="notice warning" role="alert">This case or its saved reports changed since you opened this page. Review the updated details before confirming again.</div>{% endif %}
+{% if scenario %}
+<h2>{{ scenario.name }}</h2>
+<p>Revision {{ scenario.revision }} · {{ run_count }} saved report{{ run_count|pluralize }}</p>
+<p>This permanently deletes the decision case, its vessel inputs and all {{ run_count }} associated saved report{{ run_count|pluralize }}. This cannot be undone.</p>
+<p>Download any reports you need to keep before deleting this case.</p>
+{% else %}
+<h2>{{ run.scenario_name }}</h2>
+<p>Revision {{ run.scenario_revision }} · Calculated {{ run.created_at|date:'d M Y, H:i' }} UTC</p>
+<p>This permanently deletes this calculation snapshot, including its saved inputs and results. This cannot be undone. Its decision case and other reports remain available.</p>
+<p>Download the <a href="{% url 'export_run' run.pk 'csv' %}">CSV</a> or <a href="{% url 'export_run' run.pk 'json' %}">audit file</a> first if you need to keep a copy.</p>
+{% endif %}
+<form method="post">
+{% csrf_token %}
+{% if scenario %}<input type="hidden" name="revision" value="{{ scenario.revision }}"><input type="hidden" name="run_count" value="{{ run_count }}">{% endif %}
+<div class="form-actions">
+<a class="button" href="{% if scenario %}{% url 'scenario' scenario.pk %}{% else %}{% url 'report' run.pk %}{% endif %}">Cancel</a>
+<button class="button danger" type="submit">{% if scenario %}Delete case and reports{% else %}Delete saved report{% endif %}</button>
+</div>
+</form>
+</section>
+{% endblock %}

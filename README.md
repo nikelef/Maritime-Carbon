@@ -71,6 +71,11 @@ Operator access is privileged across companies. Customer accounts are not staff.
    reference first, then a policy without pooling.
 5. Download a CSV or complete JSON audit record, or print the report. Editing a
    case creates a new revision; previous reports keep their original inputs.
+6. Analysts and company administrators can delete a saved report from the reports
+   list or report page, or a decision case from the overview or case page. Each
+   action opens a confirmation page. Deleting a case permanently removes its
+   associated reports too; deleting a report keeps its case and other reports.
+   Deletion events remain in company activity. Read-only viewers cannot delete.
 
 Each account belongs to one company. Administrators manage colleagues, analysts
 edit and calculate, and viewers read and export. Subscription entitlements are

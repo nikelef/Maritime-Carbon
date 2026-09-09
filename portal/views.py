@@ -14,7 +14,7 @@ from django.http import HttpResponse, HttpResponseForbidden, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_http_methods
 from .engine.schema import ScenarioInput, Vessel, default_fuels
 from .engine.calculator import compare, fuel_choice_notices, strategy_actions, strategy_names
 from .engine.rules import ENGINE_VERSION, RULESET_VERSION, CHECKED_ON, SOURCES, REDUCTIONS, REFERENCE_G
@@ -101,6 +101,30 @@ def scenario_detail(request, pk):
         ready_errors.append(str(exc))
     missing_fuels = [f.code for f in default_fuels() if f.code not in {f.code for f in data.fuels}]
     return render(request, "portal/scenario.html", {"scenario": scenario, "data": data, "missing_fuels": missing_fuels, "latest_run": scenario.runs.first(), "runs": scenario.runs.all()[:8], "ready_errors": ready_errors, "active_nav": "scenarios", "fuel_choice_notices": fuel_choice_notices(data)})
+
+
+@workspace_required(edit=True)
+@require_http_methods(["GET", "POST"])
+def scenario_delete(request, pk):
+    with transaction.atomic():
+        scenario = get_object_or_404(Scenario.objects.select_for_update(), pk=pk, company=request.company)
+        runs = scenario.runs.filter(company=request.company)
+        run_count = runs.count()
+        stale = False
+        if request.method == "POST":
+            stale = (request.POST.get("revision") != str(scenario.revision)
+                     or request.POST.get("run_count") != str(run_count))
+            if not stale:
+                for run in runs:
+                    audit(request, "analysis.deleted", run.pk, f"Deleted with decision case: {scenario.name}")
+                runs.delete()
+                audit(request, "scenario.deleted", scenario.pk, f"{scenario.name}; {run_count} saved reports deleted")
+                scenario.delete()
+                messages.success(request, f"Decision case and {run_count} saved reports deleted.")
+                return redirect("dashboard")
+        return render(request, "portal/confirm_delete.html", {
+            "scenario": scenario, "run_count": run_count, "stale": stale, "active_nav": "scenarios",
+        }, status=409 if stale else 200)
 
 
 @workspace_required(edit=True)
@@ -279,6 +303,8 @@ def run_analysis(request, pk):
         snapshot = data.to_dict()
         digest = hashlib.sha256(json.dumps(snapshot, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()).hexdigest()
         with transaction.atomic():
+            # Serialize report creation with case deletion; a deleted case cannot receive a new snapshot.
+            get_object_or_404(Scenario.objects.select_for_update(), pk=scenario.pk, company=request.company)
             run = AnalysisRun.objects.create(company=request.company, scenario=scenario, scenario_name=scenario.name, scenario_revision=scenario.revision, inputs=snapshot, results=results, input_digest=digest, engine_version=ENGINE_VERSION, ruleset_version=RULESET_VERSION, created_by=request.user)
             audit(request, "analysis.created", run.pk, f"Input SHA256 {digest}")
         return redirect("report", pk=run.pk)
@@ -346,6 +372,19 @@ def report_context(run, request):
 def report(request, pk):
     run = get_object_or_404(AnalysisRun, pk=pk, company=request.company)
     return render(request, "portal/report.html", report_context(run, request))
+
+
+@workspace_required(edit=True)
+@require_http_methods(["GET", "POST"])
+def report_delete(request, pk):
+    with transaction.atomic():
+        run = get_object_or_404(AnalysisRun.objects.select_for_update(), pk=pk, company=request.company)
+        if request.method == "POST":
+            audit(request, "analysis.deleted", run.pk, f"{run.scenario_name}; revision {run.scenario_revision}")
+            run.delete()
+            messages.success(request, "Saved report deleted. Its decision case is still available.")
+            return redirect("reports")
+        return render(request, "portal/confirm_delete.html", {"run": run, "active_nav": "reports"})
 
 
 def safe_csv(value):
