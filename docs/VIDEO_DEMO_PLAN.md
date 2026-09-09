@@ -1,5 +1,7 @@
 # LinkedIn desktop pitch video — proposed production plan
 
+Latest revision: [80-second single-voyage video](VIDEO_SINGLE_VOYAGE_REVIEW.md), using one bulk carrier in 2026, the owner's revised fuel quantities, and narration that finishes before the next field is shown. The earlier production status and concept below are retained as background.
+
 Status: an approximately 82-second master and a 30-second teaser have been produced with synthetic English narration and one visible caption layer. Both use one consistent two-vessel HVO case throughout. Optional SRT files are kept separately to avoid duplicate subtitle display. See [review notes and draft LinkedIn text](VIDEO_REVIEW_NOTES.md) and [reproduction instructions](../scripts/video/README.md). The original concept below is retained as background. No publication or outreach has been performed.
 
 ## Recommended concept

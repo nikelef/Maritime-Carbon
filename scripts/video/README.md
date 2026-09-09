@@ -2,10 +2,36 @@
 
 This workflow records real application interactions against Django's isolated test
 database. It does not open or modify `workspace.sqlite3`. Fixtures are fictional.
-The recording contains two vessels, prices and consumption entries, HVO assumptions,
-the live comparison, leg recommendations and real CSV/JSON downloads.
+The latest recording contains one bulk carrier and Voyage 1 in 2026, the owner's
+specified three-fuel consumption, HVO assumptions and the actual selected result.
+See [the single-voyage review notes](../../docs/VIDEO_SINGLE_VOYAGE_REVIEW.md).
 
-## Reproduce on Windows
+## Latest 80-second revision
+
+After installing the production dependencies below, run these commands in order:
+
+```powershell
+$env:PYTHONPATH='.tmp/video-deps'
+.\.venv\Scripts\python.exe -m scripts.video.render_single prepare
+$env:DJANGO_DEBUG='1'
+$env:PLAYWRIGHT_CHANNEL='msedge'
+.\.venv\Scripts\python.exe manage.py test scripts.video.capture_single --noinput
+.\.venv\Scripts\python.exe -m scripts.video.render_single render
+```
+
+Speech preparation needs network access. The measured speech duration sets each
+mouse-over hold, including a pause after speech finishes. The total is exactly 80
+seconds. The last scenes select the lowest evaluated strategy, show sections 03
+and 04, and open the ship-by-ship ledger. Browser checks verify the saved inputs,
+audit and numerical result, including zero shore electricity.
+
+Outputs are under `video-artifacts/single-voyage/`, with the narrated
+`Maritime_Carbon_One_Voyage_2026.mp4` and matching `_Review.zip`. There is one
+burned-in caption layer and no SRT file. The fixture and narration are in
+`single_voyage.py`; `shot-plan.json`, `capture.json` and `edit-timeline.json`
+retain the speech and picture timings. Frames for visual review are in `qa/`.
+
+## Dependencies and earlier two-vessel version
 
 The application environment needs Playwright and its FFmpeg recorder. Microsoft
 Edge is used by default. Install production-only graphics tools into a separate

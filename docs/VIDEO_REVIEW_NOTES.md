@@ -1,5 +1,7 @@
 # Maritime Carbon — video review draft
 
+The latest version is the [80-second, one-vessel, one-voyage revision](VIDEO_SINGLE_VOYAGE_REVIEW.md), with the owner's revised consumption and timed mouse-over narration. The two-vessel notes below describe the earlier version and its different calculation.
+
 The current review version is an 82-second desktop demonstration with a 30-second
 teaser, both with synthetic British English narration. They use fictional vessels,
 the actual application and actual calculation results. Intro and closing cards

@@ -9,7 +9,9 @@ The detailed [analyst guide](docs/Maritime_Carbon_Analyst_Guide.docx) is availab
 as a Word review draft, with a [readable source](docs/ANALYST_GUIDE.md). It explains
 every desktop input, the voyage-leg recommendations, worked examples and exports.
 See the [desktop release checks](docs/RELEASE_SANITY_CHECK.md) and
-[pitch-video storyboard](docs/VIDEO_DEMO_PLAN.md). The first video review cut has
+[pitch-video storyboard](docs/VIDEO_DEMO_PLAN.md). The latest
+[80-second single-voyage video notes](docs/VIDEO_SINGLE_VOYAGE_REVIEW.md) document
+the revised case and timed narration. The first video review cut has
 [review notes and draft LinkedIn text](docs/VIDEO_REVIEW_NOTES.md), with
 [reproducible recording and editing scripts](scripts/video/README.md).
 
