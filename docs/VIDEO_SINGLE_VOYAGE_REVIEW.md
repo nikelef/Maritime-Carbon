@@ -1,8 +1,12 @@
-# Maritime Carbon — 80-second single-voyage review
+# Maritime Carbon — single-voyage video review
 
-Latest pitch revision: the original “Which fuel. Which voyage leg. At what cost?” introduction has been restored with wording for one bulk carrier. It is followed by full-width recordings of the app's welcome and dashboard pages, with matching marketing narration and no zoom or crop. This 27.27-second opening leads into the complete accepted 80-second walkthrough, for a total of approximately 1 minute 47 seconds. All input and result figures below remain the same.
+Current review edition: `Maritime_Carbon_One_Voyage_2026_Final.mp4` adds 20 seconds explaining all four evaluated strategies from lowest to highest cost before selecting the best option. The two HVO evaluations reach the same lowest cost; allowing pooling does not lead to a pooling purchase in this case. Current fuels with pooling cost EUR 1,613.55 more, and current fuels with penalties have the highest total cost. The pointer highlights each actual strategy card while its narration finishes.
 
-The latest deliverables are `Maritime_Carbon_One_Voyage_2026_Pitch.mp4` and `Maritime_Carbon_One_Voyage_2026_Pitch_Review.zip`, in the same local output folder. The original 80-second cut remains available. The walkthrough picture is copied without re-encoding, and its narration and pauses retain their original timing.
+The operating-choice narration now describes the ship replacing gas oil with HVO on the intra-EU leg directly. Spoken section numbers are removed from both the operating-choice and cost-breakdown descriptions. A seven-second branded “THANK YOU” page closes the video, with spoken thanks and an invitation to discuss the viewer's fleet. Total duration is approximately 2 minutes 15 seconds. The matching package is `Maritime_Carbon_One_Voyage_2026_Final_Review.zip`.
+
+The retained pitch introduction uses the original “Which fuel. Which voyage leg. At what cost?” design with wording for one bulk carrier. It is followed by full-width recordings of the app's welcome and dashboard pages, with matching marketing narration and no zoom or crop. This 27.27-second opening previously led into the accepted 80-second walkthrough, for a total of approximately 1 minute 47 seconds. All input and result figures below remain the same.
+
+The previous deliverables, `Maritime_Carbon_One_Voyage_2026_Pitch.mp4` and `Maritime_Carbon_One_Voyage_2026_Pitch_Review.zip`, remain in the same local output folder, alongside the original 80-second cut. The current edition retains the opening and input scenes, the real click selecting the best strategy, and the operating-choice and ledger content. The cost-breakdown hold is extended slightly to accommodate its revised narration without rushing.
 
 This revision uses one fictional bulk carrier, Demo Atlas, one voyage and reporting year 2026 only. It replaces the earlier two-vessel video for review. The video has synthetic British English narration and one visible caption layer. No video has been published.
 

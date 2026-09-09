@@ -6,7 +6,26 @@ The latest recording contains one bulk carrier and Voyage 1 in 2026, the owner's
 specified three-fuel consumption, HVO assumptions and the actual selected result.
 See [the single-voyage review notes](../../docs/VIDEO_SINGLE_VOYAGE_REVIEW.md).
 
-## Latest 80-second revision
+## Current pitch and earlier revisions
+
+The current review edition adds four ranked strategy explanations, removes spoken
+section numbers from the result descriptions, and ends with a narrated thank-you
+page. After producing the opening and single-voyage cuts below, run:
+
+```powershell
+$env:PYTHONPATH='.tmp/video-deps'
+.\.venv\Scripts\python.exe -m scripts.video.pitch_final prepare
+$env:DJANGO_DEBUG='1'
+.\.venv\Scripts\python.exe manage.py test scripts.video.capture_strategies --noinput
+.\.venv\Scripts\python.exe -m scripts.video.pitch_final render
+```
+
+Outputs are `Maritime_Carbon_One_Voyage_2026_Final.mp4` and its `_Review.zip`
+under `video-artifacts/single-voyage/`. The real strategy-card capture verifies
+the four displayed costs against a fresh calculation and the saved audit. Speech
+finishes before the next card appears. The original best-strategy click then
+continues into the report, and the thank-you page follows the ledger. Duration is
+approximately 2 minutes 15 seconds; opening and input clips are reused.
 
 The latest pitch edition adds the original branded introduction, followed by
 full-width welcome and dashboard pages, before this complete 80-second cut.

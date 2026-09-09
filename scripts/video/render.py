@@ -53,6 +53,13 @@ def card(kind, *, example_line="Two fictional vessels. A real app walkthrough.",
         d.multiline_text((132, 316), "Which fuel.\nWhich voyage leg.\nAt what cost?", font=font(100, True), fill="white", spacing=7)
         d.text((140, 750), "FuelEU Maritime + EU ETS", font=font(38), fill="#c1d8d2")
         d.text((140, 815), example_line, font=font(30), fill="#c1d8d2")
+    elif kind == "thanks":
+        d.text((140, 288), "FROM INPUTS TO ACTION", font=font(24, True), fill=GREEN)
+        d.text((134, 362), "THANK YOU", font=font(116, True), fill="white")
+        d.text((140, 532), "Better decisions. A clearer view of carbon costs.", font=font(38), fill="#c1d8d2")
+        d.rounded_rectangle((140, 657, 833, 755), radius=10, fill=GREEN)
+        d.text((179, 675), "Let’s talk about your fleet.", font=font(38, True), fill=INK)
+        d.text((140, 812), "Maritime Carbon · FuelEU + EU ETS planning", font=font(29), fill="#c1d8d2")
     else:
         d.text((140, 288), "FROM INPUTS TO ACTION", font=font(24, True), fill=GREEN)
         d.multiline_text((134, 362), "A traceable decision\nfor your fleet.", font=font(92, True), fill="white", spacing=18)
