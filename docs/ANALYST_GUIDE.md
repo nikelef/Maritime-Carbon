@@ -432,6 +432,6 @@ The following sources were consulted for the regulatory context. The guide's des
 - European Commission, Maritime ETS questions and answers, including reporting-year coverage and treatment of alternative fuels: https://climate.ec.europa.eu/areas-action/transport-decarbonisation/reducing-emissions-shipping-sector/faq-maritime-transport-eu-emissions-trading-system-ets_en
 - European Commission, FuelEU Maritime questions and answers, including pooling and conditional RFNBO treatment: https://transport.ec.europa.eu/transport-modes/maritime/decarbonising-maritime-transport-fueleu-maritime/questions-and-answers-regulation-eu-20231805-use-renewable-and-low-carbon-fuels-maritime-transport_en
 - Application regulatory basis and its primary legislative links: docs/REGULATORY_BASIS.md in the project repository.
-- Project repository: https://github.com/nikelef/Fuel_EU_and_EU_ETS_Calculator
+- Project repository: https://github.com/nikelef/Maritime-Carbon
 
 Review status: prepared for the owner's review. Before external distribution, confirm terminology, commercial assumptions, company-specific procedures and the intended scope of any compliance statements.
