@@ -108,7 +108,7 @@ def encode_card(source, destination, seconds):
 
 
 def main():
-    for folder in ("graphics", "clips", "qa"):
+    for folder in ("graphics", "clips", "qa", "optional-captions"):
         (OUT / folder).mkdir(parents=True, exist_ok=True)
     manifest = json.loads((OUT / "capture.json").read_text(encoding="utf-8"))
     source = OUT / "raw" / "walkthrough.webm"
@@ -158,7 +158,7 @@ def main():
     playlist.write_text("".join(f"file 'clips/{p.name}'\n" for p in clips), encoding="utf-8")
     master = OUT / "Maritime_Carbon_Desktop_Demo.mp4"
     run(["-f", "concat", "-safe", "0", "-i", playlist, "-c", "copy", "-movflags", "+faststart", master])
-    (OUT / "Maritime_Carbon_Desktop_Demo.srt").write_text("\n".join(subtitles), encoding="utf-8")
+    (OUT / "optional-captions" / "Maritime_Carbon_Desktop_Demo.srt").write_text("\n".join(subtitles), encoding="utf-8")
     (OUT / "edit-timeline.json").write_text(json.dumps(cut_list, indent=2, ensure_ascii=False), encoding="utf-8")
     assert 75 <= elapsed <= 90, f"Review required: master length is {elapsed:.2f}s"
 
@@ -182,7 +182,7 @@ def main():
     playlist.write_text("".join(f"file 'clips/{p.name}'\n" for p in teaser_clips), encoding="utf-8")
     teaser = OUT / "Maritime_Carbon_Teaser_30s.mp4"
     run(["-f", "concat", "-safe", "0", "-i", playlist, "-c", "copy", "-movflags", "+faststart", teaser])
-    (OUT / "Maritime_Carbon_Teaser_30s.srt").write_text("\n".join(teaser_srt), encoding="utf-8")
+    (OUT / "optional-captions" / "Maritime_Carbon_Teaser_30s.srt").write_text("\n".join(teaser_srt), encoding="utf-8")
     for target in (master, teaser):
         # Decode the complete output, including every frame at each cut.
         run(["-i", target, "-f", "null", "-"])

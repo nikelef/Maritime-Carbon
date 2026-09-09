@@ -19,6 +19,8 @@ $env:PLAYWRIGHT_CHANNEL='msedge'
 .\.venv\Scripts\python.exe manage.py test scripts.video.capture --noinput
 $env:PYTHONPATH='.tmp/video-deps'
 .\.venv\Scripts\python.exe scripts/video/render.py
+.\.venv\Scripts\python.exe -m pip install --target .tmp/video-deps edge-tts
+.\.venv\Scripts\python.exe -m scripts.video.narrate
 ```
 
 Run each command only after the preceding command succeeds. The filming harness
@@ -36,14 +38,27 @@ Files are written under the ignored `video-artifacts/` directory:
 
 - `Maritime_Carbon_Desktop_Demo.mp4`: 1920 × 1080, 30 fps, H.264, caption-led master.
 - `Maritime_Carbon_Teaser_30s.mp4`: 30-second edit from the same footage.
-- Matching `.srt` files, with captions also burned into the video.
+- `_Narrated.mp4` versions: synthetic English narration timed to both cuts, with the same visible caption layer.
+- Optional `.srt` files under `optional-captions/`. Keep them there: placing an identically named SRT beside a captioned MP4 can cause players to display duplicate subtitles.
+- `Narration_transcript.txt` and `narration/voice-timing.json`: actual spoken text and timing checks.
 - `demo-inputs.json`, `demo-audit.json` and `demo-results.csv`: fictional case and frozen result evidence.
 - `raw/walkthrough.webm`: original full-resolution browser capture, without post-production zoom or caption graphics.
 - `capture.json` and `edit-timeline.json`: recording and final edit timings.
 - `qa/`: representative encoded frames for visual review.
 
-The first review cut has no voiceover or music. Browser recordings are silent.
-The accompanying voiceover and LinkedIn text are drafts, not published messages.
+Browser recordings and the original masters are silent. The narrated versions use
+the synthetic British English voice `en-GB-RyanNeural`, via edge-tts 7.2.8. Set
+`VIDEO_VOICE` to change it. Only fictional narration text is sent to the speech
+service. The audio is normalized to a target of -16 LUFS with a -1.5 dB true-peak
+limit. Narration fits within scene boundaries without overlapping speech.
+
+The narration step copies the existing video stream unchanged, adds AAC audio,
+and includes no selectable subtitle stream. It verifies the copied video hash,
+duration and audio/video stream counts, and decodes both final videos completely.
+The ZIP review package contains only narrated MP4s at its top level; optional
+captions are in a subfolder. No voiceover or LinkedIn text has been published.
+
+Speech tool documentation: https://github.com/rany2/edge-tts
 
 The master trims navigation pauses and applies smooth zooms in post-production.
 A cursor and click halo are added during capture. Application inputs and results

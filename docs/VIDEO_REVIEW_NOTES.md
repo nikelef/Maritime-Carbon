@@ -1,9 +1,16 @@
 # Maritime Carbon — video review draft
 
-The first cut is a silent, caption-led desktop demonstration with a 30-second
-teaser. Both use fictional vessels, the actual application and actual calculation
-results. Intro and closing cards follow the app's dark teal and light green colours.
-No video has been posted to LinkedIn.
+The current review version is an 82-second desktop demonstration with a 30-second
+teaser, both with synthetic British English narration. They use fictional vessels,
+the actual application and actual calculation results. Intro and closing cards
+follow the app's dark teal and light green colours. No video has been posted to LinkedIn.
+
+The visible captions are retained as one layer. The original MP4 contained only
+burned-in captions; a player could load the matching SRT alongside them and show
+the text twice. Optional subtitle files now live in a separate folder, and the
+narrated MP4s contain no additional subtitle stream. The voice is timed to the
+existing scenes, and the picture stream is unchanged. The actual spoken text is
+included as `Narration_transcript.txt` in the review package.
 
 ## What the demonstration shows
 
