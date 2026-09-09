@@ -19,7 +19,9 @@ from .engine.schema import ScenarioInput, Vessel, default_fuels
 from .engine.calculator import compare, fuel_choice_notices, strategy_actions, strategy_names
 from .engine.rules import ENGINE_VERSION, RULESET_VERSION, CHECKED_ON, SOURCES, REDUCTIONS, REFERENCE_G
 from .forms import ScenarioForm, VesselForm, FuelForm, MemberForm, VesselImportForm
-from .imports import COLUMNS, parse_vessels
+from .imports import parse_vessels
+from .row_imports import ROW_COLUMNS
+from .import_template import template_bytes, INSTRUCTIONS, EXAMPLE_VESSEL, EXAMPLE_ROWS
 from .models import Company, Membership, Scenario, AnalysisRun, AuditEvent
 
 
@@ -207,16 +209,21 @@ def vessel_import(request, pk):
             return redirect("scenario", pk=pk)
         except ValueError as exc:
             form.add_error(None, str(exc))
-    return render(request, "portal/vessel_import.html", {"scenario": scenario, "form": form, "active_nav": "scenarios"})
+    return render(request, "portal/vessel_import.html", {"scenario": scenario, "form": form, "active_nav": "scenarios", "import_instructions": INSTRUCTIONS})
 
 
 @workspace_required()
 def vessel_template(request):
+    if not request.path.endswith(".csv"):
+        response = HttpResponse(template_bytes(), content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        response["Content-Disposition"] = 'attachment; filename="Maritime_Carbon_Fleet_Import.xlsx"'
+        return response
     response = HttpResponse(content_type="text/csv; charset=utf-8")
-    response["Content-Disposition"] = 'attachment; filename="fleet-input-template.csv"'
+    response["Content-Disposition"] = 'attachment; filename="fleet-voyage-rows-template.csv"'
     writer = csv.writer(response)
-    writer.writerow(COLUMNS)
-    writer.writerow(["Example vessel", "", "cargo", 25000, "VLSFO", 4000, 150, 30, 60, "HVO", 30])
+    writer.writerow(ROW_COLUMNS)
+    for row in EXAMPLE_ROWS:
+        writer.writerow(EXAMPLE_VESSEL + row[1:])
     return response
 
 

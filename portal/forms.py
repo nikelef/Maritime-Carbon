@@ -336,4 +336,4 @@ class MemberForm(StyledForm):
 
 class VesselImportForm(StyledForm):
     revision = forms.IntegerField(widget=forms.HiddenInput)
-    csv_file = forms.FileField(label="Vessel CSV file", help_text="UTF-8 CSV, up to 64 KB and 20 vessels. Import adds vessels to the case; existing vessels are retained.", widget=forms.ClearableFileInput(attrs={"accept": ".csv,text/csv"}))
+    csv_file = forms.FileField(label="Fleet Excel or CSV file", help_text="Excel .xlsx up to 2 MB, or UTF-8 CSV up to 512 KB; up to 20 vessels and 2,000 consumption rows. Import adds vessels and retains existing ones.", widget=forms.ClearableFileInput(attrs={"accept": ".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"}))

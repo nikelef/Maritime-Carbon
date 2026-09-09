@@ -155,11 +155,17 @@ This row-level percentage overrides the vessel's default for that EU berth row. 
 
 For example, if a 100-tonne EU berth MGO row has 60% replaceable share, selecting OPS removes 60 tonnes from that row. It does not mean that the optimizer will independently choose any percentage between zero and 60%; OPS is an on/off vessel choice using the entered eligible shares.
 
-### 4.6 Legacy fields and CSV import
+### 4.6 Excel import and legacy CSV fields
 
 Older cases and the basic CSV may use Current fuel at sea, Annual sea fuel, Annual EU berth MGO, default intra-EU and EU/non-EU percentages, and separate Current annual sea MGO pilot. These quantities are converted to consumption rows when the vessel is edited. Legacy voyage percentages describe shares of fuel consumption, not shares of voyage counts. Any remaining sea share is outside scope.
 
-Download the current CSV fleet template and preserve its exact headers. The import accepts UTF-8, at most 64 KB and at most 20 vessels per file, subject to the company's total vessel limit. It adds vessels rather than replacing the existing fleet. The template carries basic identity, one current fuel, sea and berth tonnes, scope percentages, alternative and maximum share. It does not replace the detailed voyage-row editor or record the complete technical/evidence review. Review every imported vessel before calculation.
+Download the Excel fleet template from Import vessels. Fill Vessels with one row per ship and a unique vessel_id. Fill Consumption with one row per vessel, voyage, category and current fuel, repeating the exact vessel_id to link the rows. Enter full annual physical tonnes; do not halve EU/non-EU quantities. The app applies coverage itself. MGO is the MGO / LSMGO entry; LSMGO is also accepted on import. Percentages are numbers from 0 to 100: enter 30 for 30%. Leave the shore-power share blank or zero when no OPS replacement is planned, and always for non-EU-berth categories.
+
+The workbook contains detailed Instructions, field comments, drop-down lists and a separate Example sheet. Only Vessels and Consumption are imported. Both input sheets start blank; copy the example only if you want to try it. Preserve the sheet names and exact headers in row 1. Use values only, with no formula cells, total rows or duplicate vessel/voyage/category/fuel rows. Combine duplicate quantities before upload.
+
+Save as .xlsx, up to 2 MB. Each upload supports up to 20 vessels and 2,000 consumption rows, subject to the company's remaining vessel limit and at most 100 distinct voyage/fuel groups per ship. Import appends ships and retains the existing fleet; uploading twice adds the ships twice. Validation is all-or-nothing. Prices, years, regulatory scope, technical confirmations and fuel eligibility remain in the app. Review every imported vessel before comparison: alternative compatibility and OPS readiness start unconfirmed.
+
+The optional row-based UTF-8 CSV supports the same voyage/leg/fuel structure, up to 512 KB, with identical vessel details repeated on every row for each vessel_id. The original 11-column CSV remains supported up to 64 KB and 20 vessels. Only that older format imports one sea fuel, sea and berth totals and voyage percentages, which can then be expanded in the vessel editor.
 
 ## 5. Alternative-fuel and engine fields
 

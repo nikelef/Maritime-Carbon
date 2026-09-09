@@ -1,12 +1,14 @@
 """Conservative CSV import: only vessel planning inputs, never tenant/auth data."""
 import csv
 import io
+from pathlib import Path
+from .row_imports import parse_excel, parse_row_csv
 from .engine.schema import Vessel
 
 COLUMNS = ("name", "imo", "ship_type", "gt", "fuel", "sea_t", "berth_t", "intra_eu_pct", "extra_eu_pct", "alternative", "max_alternative_pct")
 
 
-def parse_vessels(upload):
+def parse_legacy_vessels(upload):
     if upload.size > 65536:
         raise ValueError("Use a UTF-8 CSV file no larger than 64 KB (up to 20 vessels).")
     try:
@@ -32,3 +34,25 @@ def parse_vessels(upload):
     if not vessels:
         raise ValueError("The CSV has no vessel rows.")
     return vessels
+
+
+def parse_vessels(upload):
+    suffix = Path(upload.name).suffix.lower()
+    if suffix not in (".csv", ".xlsx"):
+        raise ValueError("Upload an Excel .xlsx workbook or a UTF-8 .csv file.")
+    limit = 2*1024*1024 if suffix==".xlsx" else 512*1024
+    if upload.size>limit:
+        raise ValueError("Use Excel up to 2 MB or CSV up to 512 KB (20 vessels).")
+    content = upload.read(limit+1)
+    if len(content)>limit:
+        raise ValueError("The upload exceeds the supported file size.")
+    if suffix==".xlsx":
+        return parse_excel(content)
+    try:
+        headers = next(csv.reader(io.StringIO(content.decode("utf-8-sig"))), [])
+    except (UnicodeDecodeError,csv.Error) as exc:
+        raise ValueError("Save the file as CSV UTF-8 and try again.") from exc
+    if len(headers)==len(COLUMNS) and set(headers)==set(COLUMNS):
+        upload.seek(0)
+        return parse_legacy_vessels(upload)
+    return parse_row_csv(content)

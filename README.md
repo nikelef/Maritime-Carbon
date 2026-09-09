@@ -53,7 +53,11 @@ Operator access is privileged across companies. Customer accounts are not staff.
 
 1. Create a **decision case** with reporting years, prices, discount rate, optional
    external-pool terms and a confirmed ordinary-EU voyage scope.
-2. Add vessels individually or import the downloadable **CSV fleet template**.
+2. Add vessels individually or import the **Excel fleet template**, with separate
+   Vessels and Consumption sheets, embedded instructions and a worked example.
+   The [review workbook](docs/Maritime_Carbon_Fleet_Import.xlsx) matches the app's
+   download. Excel uploads support up to 20 vessels and 2,000 consumption rows;
+   a row-based CSV alternative and the older CSV format are also supported.
    In the consumption table, select Voyage 1–100, then a voyage/berth category,
    fuel, tonnes and shore-power share. Each voyage can have rows for
    intra-EU sea, EU/non-EU sea, other sea, EU berth or non-EU berth. Enter annual
