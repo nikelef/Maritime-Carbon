@@ -11,6 +11,7 @@ staticfiles/
 *.log
 .pytest_cache/
 test-artifacts/
+video-artifacts/
 .planning/
 .tmp/
 .tmp-tests/

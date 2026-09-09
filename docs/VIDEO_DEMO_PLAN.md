@@ -1,6 +1,6 @@
 # LinkedIn desktop pitch video — proposed production plan
 
-Status: concept for owner review, not a produced video. No publication or outreach has been performed.
+Status: the first review cut has been produced: an approximately 82-second caption-led master and a 30-second teaser. Both use one consistent two-vessel HVO case throughout. See [review notes and draft LinkedIn text](VIDEO_REVIEW_NOTES.md) and [reproduction instructions](../scripts/video/README.md). The original concept below is retained as background. No publication or outreach has been performed.
 
 ## Recommended concept
 
