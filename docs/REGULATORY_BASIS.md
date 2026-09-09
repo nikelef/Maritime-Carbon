@@ -288,3 +288,49 @@ without pooling. A pooling-enabled search that selects the same no-pooling
 actions therefore cannot displace an identical non-pooling result just because
 of its internal key. Existing snapshots keep their saved winner and amounts;
 their report derives the clearer action description without recalculation.
+
+
+### Replacement by voyage and sea leg (engine 6.5)
+
+Each positive voyage/fuel/sea-category demand is a separate replacement
+variable. Categories are intra-EU, EU–non-EU and outside-scope sea. The
+alternative fuel and its MGO pilot supply replacement energy on that same leg:
+`alternative MJ + pilot MJ = removed MJ × relative energy requirement`.
+The ship cap uses total original sea energy; fuel supply is shared across the
+fleet. Berth consumption is unchanged by sea-fuel switching. Legacy pilot is
+included once using its recorded voyage shares.
+
+The previous fuel search supplies a feasible incumbent. Two leg-search starts
+(the incumbent and current fuels) run up to three fleet passes. Each coordinate
+and energy transfer is sampled at 21 points within feasible bounds. Annual and
+cumulative compliance-balance roots and shared fuel-supply boundaries are added
+as candidates. Golden-section refinement around the best sampled interval uses
+up to 36 iterations, with a parameter interval tolerance of 1e-10. Full-horizon
+fleet simulation evaluates each candidate, including banking, pooling,
+penalties and full conversion costs. Cost improvements below EUR 0.0001 are
+ignored between coordinate updates. These are bounded heuristic searches;
+multiple minima, pooling discontinuities and coupled fleet choices mean a
+global optimum is not guaranteed.
+
+The report remarks and operating-choice table identify the selected voyage,
+sea leg and fuel quantities. JSON and CSV include `leg_replacements` with
+original/removed/retained tonnes, removed energy, alternative energy, alternative
+tonnes and MGO pilot tonnes. Sensitivities replay the saved leg allocations.
+The existing equal-step fuel comparison retains proportional allocation as an
+illustration and is distinct from the selected leg recommendation. Earlier
+snapshots retain their original allocation and its methodology disclosure.
+
+
+### Two-percent search grid (engine 6.5.1)
+
+The initial fuel allocation grid now uses 2% of total original sea energy,
+including the uniform-start fallback and fuel first-step comparison. Leg
+coordinate and pair-transfer searches sample 51 points (50 equal intervals,
+2% of each feasible range). Continuous refinement and exact compliance/supply
+boundary candidates remain enabled. New reports record and show the grid size;
+older saved calculations retain their original grid description.
+
+Strategies remain separate if their operating decisions, ship ledgers, annual
+cost components, total cost or NPV differ. Only identical outcomes are grouped;
+equality is checked before display rounding. Policy names alone do not make outcomes different. Nonempty first-step
+comparisons and priority details displayed in section 03 do keep them separate.

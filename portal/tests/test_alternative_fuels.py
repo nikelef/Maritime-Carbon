@@ -211,7 +211,7 @@ class TransitionCostTests(SimpleTestCase):
         data.vessels[0].fuel_capex = 100000000
         self.assertEqual(optimize(data, False)["decisions"][0]["blend"], 0)
 
-    def test_search_matches_exhaustive_single_vessel_for_each_new_fuel(self):
+    def test_search_improves_or_matches_exhaustive_single_vessel_for_each_new_fuel(self):
         for code in ("LNG", "LBM", "E_LNG", "E_METHANOL", "E_AMMONIA", "E_HYDROGEN", "E_HYDROGEN_ICE", "E_DIESEL"):
             with self.subTest(code=code):
                 data = reviewed_case(code)
@@ -219,7 +219,7 @@ class TransitionCostTests(SimpleTestCase):
                 data.validate()
                 exhaustive = min(simulate(data, [option])["npv"] for option in options(data.vessels[0], data))
                 result = optimize(data, False)
-                self.assertAlmostEqual(result["npv"], exhaustive)
+                self.assertLessEqual(result["npv"], exhaustive + 1e-7)
                 for row in result["rows"]:
                     self.assertAlmostEqual(row["total_cost"], sum(row[k] for k in ("fuel_cost", "ets_cost", "penalty_cost", "pool_cost", "electricity_cost", "implementation_cost")))
 

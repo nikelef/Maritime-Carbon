@@ -118,7 +118,11 @@ class PortalTests(TestCase):
         self.scenario.save()
         run = self.run_case()
         response = self.client.get(reverse("report", args=[run.pk]) + "?strategy=pool")
-        self.assertEqual(response.context["selected"]["key"], "pool")
+        selected = response.context["selected"]
+        self.assertIn("pool", [item["key"] for item in selected["evaluations"]])
+        saved_pool = next(s for s in run.results["strategies"] if s["key"] == "pool")
+        self.assertEqual(selected["annual"], saved_pool["annual"])
+        self.assertEqual(selected["rows"], saved_pool["rows"])
         self.assertNotContains(response, '<script>alert("x")</script>')
         self.assertContains(response, "&lt;script&gt;")
 

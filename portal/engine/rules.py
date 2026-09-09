@@ -1,5 +1,5 @@
 """Versioned planning rules. See docs/REGULATORY_BASIS.md for applicability."""
-ENGINE_VERSION = "6.4.2"
+ENGINE_VERSION = "6.5.2"
 RULESET_VERSION = "EU-2026-09-07"
 CHECKED_ON = "2026-09-07"
 REFERENCE_G = 91.16

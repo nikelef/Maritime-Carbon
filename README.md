@@ -5,6 +5,12 @@ costs. The supported application is now **Django**, with password accounts,
 company workspaces, user roles, subscription expiry, saved decision cases, and
 immutable calculation snapshots.
 
+The detailed [analyst guide](docs/Maritime_Carbon_Analyst_Guide.docx) is available
+as a Word review draft, with a [readable source](docs/ANALYST_GUIDE.md). It explains
+every desktop input, the voyage-leg recommendations, worked examples and exports.
+See the [desktop release checks](docs/RELEASE_SANITY_CHECK.md) and
+[proposed pitch-video storyboard](docs/VIDEO_DEMO_PLAN.md).
+
 ## Try the application
 
 Python 3.12 is recommended. On Windows:
@@ -91,14 +97,17 @@ checked on each protected request. The current supported case limit is 20 ships.
   horizon, with explicit discounting and price sensitivities.
 - Reproducible inputs, SHA-256 fingerprint, engine/rule versions and source snapshots.
 
-The search selects replacement separately by current sea fuel, varying one fuel
-or transferring replacement between two fuels in steps of 5% of total baseline
-sea energy, plus exact fuel-exhaustion and vessel-limit endpoints. The overall
-ship limit is shared across fuels. Each fuel keeps its existing sea-leg mix.
-Two initial choices, up to three fleet passes and three allocation passes per
-ship are used. Reports show fuel reductions, retained tonnes and a starting
-priority among selected fuels, with equal-step total-cost comparisons across current source fuels. Decisions stay fixed over the horizon. **Lowest evaluated cost is not
-a guarantee of the globally optimal fleet strategy.**
+The search selects replacement separately by voyage, current fuel and sea-leg
+category. Removed fuel and the alternative system's fuel/pilot energy stay on
+the same leg. The ship's replacement cap and annual fleet fuel supply remain
+shared constraints. The initial grid uses 2% of total sea energy; each leg
+search samples its feasible range in 2% intervals, then refines between points.
+A fuel-level search provides an incumbent; two leg-level
+starts and up to three fleet passes add continuous quantity refinement,
+compliance-balance roots, supply boundaries and transfers between legs.
+Reports identify the voyage, leg, removed tonnes, added alternative tonnes and
+pilot tonnes. Decisions stay fixed over the horizon. **Lowest evaluated cost
+is not a guarantee of the globally optimal fleet strategy.**
 
 The case page and reports identify selected alternatives excluded by eligibility,
 compatibility, replacement limits or zero supply. A low WtW entry does not enable

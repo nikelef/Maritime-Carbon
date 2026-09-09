@@ -82,7 +82,7 @@ class FuelReplacementTests(SimpleTestCase):
         for item in output["replacement_priority"]:
             lcv = {"MGO": 42700, "HSFO": 40500}[item["fuel"]]
             price = {"MGO": 720, "HSFO": 470}[item["fuel"]]
-            annual_fuel = 1000 * 470 + 100 * 720 - energy * .05 / lcv * price + energy * .05 / 44000 * 100
+            annual_fuel = 1000 * 470 + 100 * 720 - energy * .02 / lcv * price + energy * .02 / 44000 * 100
             expected = sum((annual_fuel * (1 + data.fuel_escalation) ** year + (1234 if year == 0 else 0)) /
                            (1 + data.discount_rate) ** year for year in range(3))
             self.assertAlmostEqual(item["first_step_npv"], expected)
@@ -221,7 +221,7 @@ class FuelReplacementReportTests(TestCase):
     def test_report_and_audit_exports_retain_cost_selected_quantities(self):
         response = self.client.get(reverse("report", args=[self.run.pk]), {"strategy": "fuel"})
         for text in ("Replace MGO first", "Replace 100% of MGO: 100.0 t/year", "Keep HSFO: 1,000.0 t/year",
-                     "Add 97.0 t/year of HVO", "leg selection is not optimized",
+                     "Add 97.0 t/year of HVO", "Outside-scope sea",
                      "Compare first-step costs", "Lower fleet present cost is better"):
             self.assertContains(response, text)
         audit = json.loads(self.client.get(reverse("export_run", args=[self.run.pk, "json"])).content)
@@ -236,7 +236,7 @@ class FuelReplacementReportTests(TestCase):
     def test_saved_legacy_result_discloses_original_uniform_allocation(self):
         for strategy in self.run.results["strategies"]:
             for decision in strategy["decisions"]:
-                for field in ("fuel_replacements", "replacement_priority", "replacements"):
+                for field in ("fuel_replacements", "replacement_priority", "replacements", "leg_replacements", "leg_remarks"):
                     decision.pop(field, None)
         legacy = AnalysisRun.objects.create(
             company=self.run.company, scenario=self.scenario, scenario_name=self.run.scenario_name,

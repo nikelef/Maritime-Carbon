@@ -156,7 +156,7 @@ class MultiFuelPortalTests(TestCase):
         self.assertEqual(len(exported["inputs"]["vessels"][0]["sea_fuels"]), 3)
         rows = list(csv.DictReader(io.StringIO(self.client.get(reverse("export_run", args=[run.pk, "csv"])).content.decode("utf-8-sig"))))
         fuel_row = next(row for row in rows if row["vessel"] == "Mixed oils")
-        self.assertEqual(len(json.loads(fuel_row["current_sea_fuels_json"])), 3)
+        self.assertEqual({r["fuel"] for r in json.loads(fuel_row["current_sea_fuels_json"])}, {"HSFO", "MGO", "VLSFO"})
         self.assertEqual(json.loads(fuel_row["total_fuel_tonnes_json"])["MGO"], 125)
         self.assertTrue(all(None not in row for row in rows))
         for strategy in run.results["strategies"]:

@@ -177,11 +177,11 @@ class PhysicalAndFinancialTests(SimpleTestCase):
         for row in result["rows"]:
             self.assertAlmostEqual(row["bank_close_t"] - row["bank_open_t"], row["balance_t"] + row["residual_deficit_t"] + row["pool_transfer_t"] + row["pool_buy_t"])
 
-    def test_one_ship_search_matches_exhaustive_grid_and_is_repeatable(self):
+    def test_one_ship_search_improves_or_matches_exhaustive_grid_and_is_repeatable(self):
         self.data.end_year = 2030
         best = optimize(self.data, False)
         exhaustive = min(simulate(self.data, [option])["npv"] for option in options(self.data.vessels[0], self.data))
-        self.assertAlmostEqual(best["npv"], exhaustive)
+        self.assertLessEqual(best["npv"], exhaustive + 1e-7)
         self.assertEqual(compare(self.data), compare(self.data))
 
     def test_compatibility_and_evidence_are_both_required(self):

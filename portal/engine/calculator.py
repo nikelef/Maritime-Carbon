@@ -47,13 +47,55 @@ def sea_demands(vessel, scenario):
             for c, t in sorted(tonnes.items()) if t > 0} if total else {}
 
 
-def profile(vessel, scenario, year, blend=0, ops=False, replacements=None):
+LEG_LABELS = {"intra_t": "Intra-EU sea", "extra_t": "EU–non-EU sea", "outside_t": "Outside-scope sea"}
+
+
+def leg_demands(vessel, scenario):
+    """Stable voyage/fuel/category keys; legacy pilot is included exactly once."""
+    fuels = {f.code: f for f in scenario.fuels}
+    demands = {}
+    for row in vessel.consumption_entries():
+        for leg, scope in (("intra_t", 1.0), ("extra_t", .5), ("outside_t", 0.0)):
+            tonnes = row.get(leg, 0)
+            if tonnes:
+                voyage = row.get("voyage", 1)
+                key = f"{voyage}:{row['fuel']}:{leg}"
+                demands[key] = {"voyage": voyage, "fuel": row["fuel"], "leg": leg,
+                                "leg_label": LEG_LABELS[leg], "scope": scope,
+                                "tonnes": tonnes, "energy": tonnes * fuels[row["fuel"]].lcv}
+    total = fsum(d["energy"] for d in demands.values())
+    return {key: d | {"weight": d["energy"] / total} for key, d in sorted(demands.items())}
+
+
+def saved_decision(output):
+    if "leg_replacements" in output:
+        return (output["blend"], output["ops"], None,
+                tuple((item["key"], item["fraction"]) for item in output["leg_replacements"]))
+    return (output["blend"], output["ops"], tuple(sorted(output["replacements"].items())))
+
+
+def profile(vessel, scenario, year, blend=0, ops=False, replacements=None, leg_replacements=None):
     fuels = {f.code: f for f in scenario.fuels}
     alt, berth = fuels[vessel.alternative], fuels["MGO"]
     if isinstance(blend, bool) or not isinstance(blend, (int, float)) or not isfinite(blend):
         raise ValueError("Replacement share must be a finite number.")
     entries = vessel.sea_fuel_entries()
     demands = sea_demands(vessel, scenario)
+    legs = leg_demands(vessel, scenario) if leg_replacements is not None else None
+    leg_shares = dict(leg_replacements) if legs is not None else {}
+    if legs is not None:
+        if replacements is not None:
+            raise ValueError("Use either fuel or leg allocations, not both.")
+        if (set(leg_shares) - set(legs) or any(isinstance(x, bool) or not isinstance(x, (int, float))
+                or not isfinite(x) or not 0 <= x <= 1 for x in leg_shares.values())):
+            raise ValueError("Invalid voyage-leg replacement allocation.")
+        replacements = {code: fsum(d["tonnes"] * leg_shares.get(key, 0) for key, d in legs.items()
+                                   if d["fuel"] == code) / demand["tonnes"] for code, demand in demands.items()}
+        entries = [dict(voyage=d["voyage"], fuel=d["fuel"], sea_t=d["tonnes"],
+                        intra_share=1.0 if d["leg"] == "intra_t" else 0.0,
+                        extra_share=1.0 if d["leg"] == "extra_t" else 0.0,
+                        leg=d["leg"], leg_label=d["leg_label"], allocation_key=key)
+                   for key, d in legs.items()]
     # Scalar decisions remain supported for old callers. New decisions specify
     # the fraction of each current fuel removed, aggregated across its sea legs.
     shares = {code: blend for code in demands} if replacements is None else dict(replacements)
@@ -73,15 +115,16 @@ def profile(vessel, scenario, year, blend=0, ops=False, replacements=None):
     # Keep the same service demand. Pilot fuel is part of the system's energy,
     # not an unpriced addition to an otherwise 100% renewable replacement.
     sea_scope = vessel.intra_share + .5 * vessel.extra_share
-    reference_energy = fsum(entry["sea_t"] * fuels[entry["fuel"]].lcv for entry in entries) + vessel.current_pilot_t * berth.lcv
+    legacy_pilot = vessel.current_pilot_t if legs is None else 0
+    reference_energy = fsum(entry["sea_t"] * fuels[entry["fuel"]].lcv for entry in entries) + legacy_pilot * berth.lcv
     replaced_energy = reference_energy * actual_blend
-    scoped_replaced_energy = fsum(entry["sea_t"] * shares.get(entry["fuel"], 0) * fuels[entry["fuel"]].lcv * (entry["intra_share"] + .5 * entry["extra_share"]) for entry in entries) + vessel.current_pilot_t * shares.get("MGO", 0) * berth.lcv * sea_scope
+    scoped_replaced_energy = fsum(entry["sea_t"] * (leg_shares.get(entry["allocation_key"], 0) if legs is not None else shares.get(entry["fuel"], 0)) * fuels[entry["fuel"]].lcv * (entry["intra_share"] + .5 * entry["extra_share"]) for entry in entries) + legacy_pilot * shares.get("MGO", 0) * berth.lcv * sea_scope
     alternative_scope = scoped_replaced_energy / replaced_energy if replaced_energy else 0
-    baseline_fuels = [dict(entry, sea_t=entry["sea_t"] * (1 - shares.get(entry["fuel"], 0))) for entry in entries]
+    baseline_fuels = [dict(entry, sea_t=entry["sea_t"] * (1 - (leg_shares.get(entry["allocation_key"], 0) if legs is not None else shares.get(entry["fuel"], 0)))) for entry in entries]
     fossil_t = fsum(entry["sea_t"] for entry in baseline_fuels)
     alternative_system_energy = replaced_energy * vessel.alternative_energy_ratio
     alt_t = alternative_system_energy * (1 - vessel.alternative_pilot_share) / alt.lcv
-    remaining_pilot_t = vessel.current_pilot_t * (1 - shares.get("MGO", 0))
+    remaining_pilot_t = legacy_pilot * (1 - shares.get("MGO", 0))
     alternative_pilot_t = alternative_system_energy * vessel.alternative_pilot_share / berth.lcv
     pilot_t = remaining_pilot_t + alternative_pilot_t
     berth_fuels = []
@@ -126,7 +169,7 @@ def profile(vessel, scenario, year, blend=0, ops=False, replacements=None):
     fuel_tonnes = {code: fsum(tonnes for f, tonnes, _, _ in parts if f.code == code) for code in fuels}
     electricity_cost = electricity_mwh * scenario.electricity_price * fuel_multiplier
     ets_cost = ets * scenario.eua_price * (1 + scenario.eua_escalation) ** delta
-    return {"vessel": vessel.name, "year": year, "target_g": target(year), "attained_g": attained,
+    row = {"vessel": vessel.name, "year": year, "target_g": target(year), "attained_g": attained,
             "energy_mj": energy, "balance_t": balance, "ets_t": ets, "fuel_cost": fuel_cost,
             "ets_cost": ets_cost, "electricity_cost": electricity_cost, "electricity_mwh": electricity_mwh,
             "alternative_t": alt_t, "fossil_t": fossil_t, "baseline_t": fossil_t, "berth_t": berth_t, "pilot_t": pilot_t, "berth_fuels": berth_fuels, "non_eu_berth_t": non_eu_berth_t,
@@ -147,6 +190,17 @@ def profile(vessel, scenario, year, blend=0, ops=False, replacements=None):
             "rfnbo_penalty_base": rfnbo_deficit / 41000 * scenario.rfnbo_penalty_pd if rfnbo_active else 0,
             "implementation_cost": ((vessel.ops_annual + (vessel.ops_capex if delta == 0 else 0)) if ops else 0) + ((vessel.fuel_annual + (vessel.fuel_capex if delta == 0 else 0)) if blend else 0),
             "borrowing_limit_t": borrowing_limit(energy, year)}
+    if legs is not None:
+        row["leg_replacements"] = [dict(d, key=key, fraction=leg_shares.get(key, 0),
+            original_t=d["tonnes"], replaced_t=d["tonnes"] * leg_shares.get(key, 0),
+            remaining_t=d["tonnes"] * (1 - leg_shares.get(key, 0)),
+            replaced_energy_mj=d["energy"] * leg_shares.get(key, 0),
+            alternative_energy_mj=d["energy"] * leg_shares.get(key, 0) * vessel.alternative_energy_ratio,
+            alternative_t=d["energy"] * leg_shares.get(key, 0) * vessel.alternative_energy_ratio * (1-vessel.alternative_pilot_share) / alt.lcv,
+            pilot_t=d["energy"] * leg_shares.get(key, 0) * vessel.alternative_energy_ratio * vessel.alternative_pilot_share / berth.lcv)
+            for key, d in legs.items()]
+    return row
+
 
 
 def simulate(scenario, decisions, use_pool=False, *, profile_cache=None, score_only=False):
@@ -229,7 +283,8 @@ def simulate(scenario, decisions, use_pool=False, *, profile_cache=None, score_o
         return fsum(scores)
     return {"npv": fsum(r["npv_cost"] for r in annual), "total": fsum(r["total_cost"] for r in annual), "annual": annual, "rows": rows, "decisions": [{"vessel": v.name, "alternative": v.alternative, "blend": d[0], "ops": d[1],
             "replacements": {item["fuel"]: item["fraction"] for item in row["fuel_replacements"]},
-            "fuel_replacements": row["fuel_replacements"], "alternative_t": row["alternative_t"]}
+            "fuel_replacements": row["fuel_replacements"], "alternative_t": row["alternative_t"],
+            **({"leg_replacements": row["leg_replacements"]} if "leg_replacements" in row else {})}
             for v, d, row in zip(scenario.vessels, decisions, rows[:len(scenario.vessels)])], "use_pool": use_pool,
             "residual_deficit_t": fsum(r["residual_deficit_t"] for r in annual), "pool_cost": fsum(r["pool_cost"] for r in annual), "penalty_cost": fsum(r["penalty_cost"] for r in annual)}
 
@@ -239,8 +294,11 @@ def allocated_decision(demands, shares, ops):
     return (fsum(demands[code]["weight"] * share for code, share in fractions), ops, fractions)
 
 
+GRID_INTERVALS = 50  # 2% steps; shared by the initial and leg-search grids.
+
+
 def share_grid(limit):
-    return sorted({0.0, max(0.0, limit)} | {i / 20 for i in range(1, 21) if i / 20 <= limit})
+    return sorted({0.0, max(0.0, limit)} | {i / GRID_INTERVALS for i in range(1, GRID_INTERVALS + 1) if i / GRID_INTERVALS <= limit})
 
 
 def options(vessel, scenario):
@@ -256,7 +314,7 @@ def options(vessel, scenario):
 def allocation_options(vessel, scenario, decision):
     """Vary one fuel or transfer replacement between two fuels at fixed total.
 
-    Steps are 5% of the ship's total original sea energy, with exact fuel
+    Steps are 2% of the ship's total original sea energy, with exact fuel
     exhaustion and remaining vessel-cap endpoints. Each fuel retains its legs.
     Pair transfers allow a full cap to move from one source fuel to another.
     """
@@ -290,7 +348,7 @@ def allocation_options(vessel, scenario, decision):
     return sorted(candidates)
 
 
-def optimize(scenario, use_pool):
+def optimize_fuels(scenario, use_pool):
     """Deterministic per-fuel coordinate search with bounded pair transfers.
 
     Decisions stay fixed across the horizon. This is not a global optimizer of
@@ -318,8 +376,8 @@ def optimize(scenario, use_pool):
             current, current_score = list(zero), score(zero)
         if current_score is None:
             # A baseline supply cap can require substitution; search uniform starts.
-            for share in range(21):
-                candidate = [min(c, key=lambda d: abs(d[0] - share / 20) + int(d[1])) for c in choices]
+            for share in range(GRID_INTERVALS + 1):
+                candidate = [min(c, key=lambda d: abs(d[0] - share / GRID_INTERVALS) + int(d[1])) for c in choices]
                 candidate_score = score(candidate)
                 if candidate_score is not None:
                     current, current_score = candidate, candidate_score
@@ -355,6 +413,11 @@ def optimize(scenario, use_pool):
     return best
 
 
+def optimize(scenario, use_pool):
+    from .leg_optimizer import optimize_legs
+    return optimize_legs(scenario, use_pool)
+
+
 def add_replacement_priority(scenario, result, decisions, score):
     """Compare current source fuels and rank the selected reductions by cost.
 
@@ -369,7 +432,7 @@ def add_replacement_priority(scenario, result, decisions, score):
             continue
         demands = sea_demands(vessel, scenario)
         sources = [entry for entry in output["fuel_replacements"] if entry["fuel"] != vessel.alternative]
-        step = min(.05, vessel.max_blend, *(demands[e["fuel"]]["weight"] for e in sources))
+        step = min(1 / GRID_INTERVALS, vessel.max_blend, *(demands[e["fuel"]]["weight"] for e in sources))
         trial = list(decisions)
         trial[index] = allocated_decision(demands, {}, output["ops"])
         reference = score(trial)
@@ -427,6 +490,10 @@ def strategy_actions(result):
     electricity = fsum(row.get("electricity_mwh", 0) for row in result["annual"])
     external = fsum(row.get("pool_buy_t", 0) for row in result["rows"])
     internal = fsum(max(0, row.get("pool_transfer_t", 0)) for row in result["rows"])
+    # Continuous searches can leave nanotonnes at settlement boundaries. Do
+    # not describe these as an operating action; retain exact amounts in rows.
+    external = external if external > 1e-7 else 0.0
+    internal = internal if internal > 1e-7 else 0.0
     name = "Alternative sea fuels" if fuel_switch else "Current sea fuels"
     if electricity > 1e-9:
         name += " + shore power"
@@ -448,21 +515,31 @@ def strategy_actions(result):
             "pooling_used": external > 1e-9 or internal > 1e-9}
 
 
+def strategy_names(scenario):
+    """Name policy choices using the case's shore-power permission."""
+    choices = "Fuel & shore-power choices" if any(v.ops_ready for v in scenario.vessels) else "Fuel choices"
+    return {"baseline": "Current fuels · settle deficits",
+            "pool": "Current fuels · pooling allowed",
+            "fuel": choices,
+            "combined": choices + " · pooling allowed"}
+
+
 def compare(scenario):
     scenario.validate()
-    zero = [(0, False)] * len(scenario.vessels)
+    zero = [(0, False, None, tuple((key, 0.0) for key in leg_demands(v, scenario))) for v in scenario.vessels]
     baseline = simulate(scenario, zero)
     if baseline is None:
         raise ValueError("Baseline fuel consumption exceeds an entered annual supply cap. Adjust the baseline or cap before comparing.")
     strategies = []
-    for key, name, result in [
-        ("baseline", "Current fuels · settle deficits", baseline),
-        ("pool", "Current fuels · pooling allowed", simulate(scenario, zero, True)),
-        ("fuel", "Fuel & shore-power choices", optimize(scenario, False)),
-        ("combined", "Fuel & shore-power choices · pooling allowed", optimize(scenario, True)),
+    names = strategy_names(scenario)
+    for key, result in [
+        ("baseline", baseline),
+        ("pool", simulate(scenario, zero, True)),
+        ("fuel", optimize(scenario, False)),
+        ("combined", optimize(scenario, True)),
     ]:
         if result:
-            result.update(key=key, name=name, savings=baseline["npv"] - result["npv"])
+            result.update(key=key, name=names[key], savings=baseline["npv"] - result["npv"])
             result["actions"] = strategy_actions(result)
             strategies.append(result)
     # A policy permitting pooling is not evidence that pooling was used. For
@@ -470,7 +547,7 @@ def compare(scenario):
     strategies.sort(key=lambda s: (s["npv"], s["key"] != "baseline", s["use_pool"], s["key"]))
     coverage_limits = []
     warnings = ["Prices and consumption are planning assumptions; prices are not a live market feed.",
-                "Lowest evaluated cost selects replacement separately by current sea fuel. The search varies or transfers replacement in steps of 5% of total baseline sea energy, including exact fuel-exhaustion and vessel-limit endpoints. Two starts, up to three fleet passes and three allocation passes per ship are used. Decisions are fixed over the horizon; a global optimum is not guaranteed.",
+                "Lowest evaluated cost selects replacement by voyage, current fuel and sea-leg category. The previous fuel allocation search supplies an incumbent; a bounded continuous coordinate search adds leg allocation, energy transfers, compliance roots and shared supply boundaries. Two starts and up to three fleet passes are used. Decisions are fixed over the horizon; a global optimum is not guaranteed.",
                 "Annual fuel shares use proportional voyage allocation. Confirm EU/EEA applicability, exclusions and transhipment rules for both regimes before relying on results.",
                 "Unused banked surplus has no cash income or terminal value. No surplus sale or borrowing is assumed."]
     if not scenario.pool_enabled:
@@ -500,20 +577,20 @@ def compare(scenario):
         warnings.append("RFNBOs require certified production/lifecycle evidence, including applicable RED and delegated-act criteria. Where enabled for the fuel, the elective reward is 2 in the intensity denominator through 2033 and 1 thereafter; physical compliance-balance energy is not doubled. The reward setting is fixed, not optimized. ETS CO2 zero-rating is a separate user assertion and does not remove CH4/N2O.")
     if any(f.pathway == "methane" for f in scenario.fuels if any(f.code in {entry["fuel"] for entry in v.consumption_entries()} | {v.alternative} for v in scenario.vessels)):
         warnings.append("LNG, bio-LNG and e-LNG use the selected engine's Annex II default methane slip, with the combusted fraction reduced accordingly. This annual model uses separate current sea, berth and alternative methane consumer classes per vessel; mixed engines, load-dependent or measured slip, additional venting and boil-off require a separate assessment.")
-    warnings.append("One alternative system is evaluated per vessel per case. The overall replacement limit applies to total baseline sea service demand, not separately to each fuel. Each current fuel can have a different replacement fraction, applied proportionally across all its sea legs; the alternative inherits the coverage of the actual displaced energy. Individual legs are not optimized. Actual alternative energy uses the entered system-energy ratio and MGO pilot fraction. Current pilot in the consumption table, and legacy separate MGO pilot, are included once in their current-fuel demand. Berth fuel is unchanged by sea-fuel switching; only eligible EU berth fuel is replaced by shore power. Enter conversion, downtime and incremental annual costs; compare separate cases for other technologies.")
-    warnings.append("First-step comparisons cover all current source fuels except the alternative itself, using equal original sea-energy steps and full-horizon fleet present cost with other ships and shore power held at the selected strategy. Replacement priority ranks the fuels selected for reduction. The final quantities are optimized together; priority is not a year-by-year switching schedule. Ties use fuel code order. Price sensitivities retain the saved per-fuel allocations.")
+    warnings.append("One alternative system is evaluated per vessel per case. The overall replacement limit applies to total baseline sea service demand, not separately to each fuel. Each voyage/fuel/sea-leg combination can have a different replacement fraction. The alternative fuel and its MGO pilot supply the replacement energy on that same leg and inherit its coverage. Actual alternative energy uses the entered system-energy ratio and MGO pilot fraction. Current pilot in the consumption table, and legacy separate MGO pilot, are included once in their current-fuel demand. Berth fuel is unchanged by sea-fuel switching; only eligible EU berth fuel is replaced by shore power. Enter conversion, downtime and incremental annual costs; compare separate cases for other technologies.")
+    warnings.append("First-step comparisons cover all current source fuels except the alternative itself, using equal original sea-energy steps and full-horizon fleet present cost with other ships and shore power held at the selected strategy. The first-step fuel comparison uses proportional leg allocation for illustration; the selected leg quantities determine the final recommendation. The final quantities are optimized together; priority is not a year-by-year switching schedule. Ties use fuel code order. Price sensitivities retain the saved voyage-leg allocations.")
     warnings.append("Administrative, hedging, financing, charter-party allocation and unmodelled operating costs must be added to the annual other-cost assumption where relevant.")
     sensitivities = []
     alternative_codes = {v.alternative for v in scenario.vessels}
     for label, changed in [("EUA −20%", replace(scenario, eua_price=scenario.eua_price * .8)), ("EUA +20%", replace(scenario, eua_price=scenario.eua_price * 1.2)), ("Pool price +20%", replace(scenario, pool_price=scenario.pool_price * 1.2)), ("Alternative fuel +20%", replace(scenario, fuels=[replace(f, price=f.price * 1.2) if f.code in alternative_codes else f for f in scenario.fuels]))]:
         values = []
         for strategy in strategies:
-            decisions = [(d["blend"], d["ops"], tuple(sorted(d["replacements"].items()))) for d in strategy["decisions"]]
+            decisions = [saved_decision(d) for d in strategy["decisions"]]
             result = simulate(changed, decisions, strategy["use_pool"])
             if result:
                 values.append((result["npv"], strategy["name"]))
         winner = min(values)
         sensitivities.append({"assumption": label, "npv": winner[0], "winner": winner[1]})
-    return {"strategies": strategies, "best_key": strategies[0]["key"], "baseline_npv": baseline["npv"], "warnings": warnings, "sensitivities": sensitivities,
+    return {"search_grid_percent": 100 / GRID_INTERVALS, "strategies": strategies, "best_key": strategies[0]["key"], "baseline_npv": baseline["npv"], "warnings": warnings, "sensitivities": sensitivities,
             "fuel_choice_notices": fuel_choice_notices(scenario),
             "horizon": f"{scenario.start_year}–{scenario.end_year}", "vessel_count": len(scenario.vessels), "coverage_limits": coverage_limits, "sources": [dict(s) for s in SOURCES], "checked_on": CHECKED_ON}

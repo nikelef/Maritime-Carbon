@@ -45,16 +45,16 @@ class FuelEligibilityRegressionTests(SimpleTestCase):
         data = high_carbon_price_case(True, True)
         result = compare(data)
         best = result["strategies"][0]
-        self.assertEqual(best["decisions"][0]["replacements"], {"HSFO": 0, "MGO": 1, "VLSFO": 0})
-        alternative_t = 100 * 42700 / 44000
+        self.assertEqual(best["decisions"][0]["replacements"], {"HSFO": .2, "MGO": .8, "VLSFO": 1/6})
+        alternative_t = (200 * 40500 + 80 * 42700 + 10 * 40500) / 44000
         self.assertAlmostEqual(best["decisions"][0]["alternative_t"], alternative_t)
         oil_factor = 3.114 + .00005 * 28 + .00018 * 265
         mgo_factor = 3.206 + .00005 * 28 + .00018 * 265
         hvo_factor = .00005 * 28 + .00018 * 265
-        # The replaced MGO has 90% coverage; 50 t EU berth MGO is retained.
+        # Replace only the intra-EU sea legs; retain extra-EU legs and EU berth MGO.
         baseline_ets = 635 * oil_factor + 140 * mgo_factor
-        selected_ets = 635 * oil_factor + 50 * mgo_factor + alternative_t * .9 * hvo_factor
-        selected_fuel = 1000 * 470 + 60 * 575 + 50 * 720 + alternative_t * 1550
+        selected_ets = 425 * oil_factor + 60 * mgo_factor + alternative_t * hvo_factor
+        selected_fuel = 800 * 470 + 50 * 575 + 70 * 720 + alternative_t * 1550
         row = best["annual"][0]
         self.assertAlmostEqual(row["fuel_cost"], selected_fuel)
         self.assertAlmostEqual(row["ets_cost"], selected_ets * 400)
@@ -75,7 +75,15 @@ class FuelEligibilityRegressionTests(SimpleTestCase):
     def test_fueleu_eligibility_alone_does_not_zero_rate_ets(self):
         result = compare(high_carbon_price_case(True, False))
         best = result["strategies"][0]
-        self.assertEqual(best["decisions"][0]["blend"], 0)
+        self.assertGreater(best["decisions"][0]["blend"], 0)
+        row = best["rows"][0]
+        retained = sum(item["sea_t"] * (item["intra_share"] + .5*item["extra_share"]) *
+                       ((3.206 if item["fuel"] == "MGO" else 3.114) + .00005*28 + .00018*265)
+                       for item in row["baseline_fuels"])
+        hvo = next(f for f in high_carbon_price_case(True, False).fuels if f.code == "HVO")
+        expected = retained + 50*(3.206+.00005*28+.00018*265)
+        expected += row["alternative_t"]*(hvo.co2+hvo.ch4*28+hvo.n2o*265)
+        self.assertAlmostEqual(row["ets_t"], expected)
         notice = result["fuel_choice_notices"][0]
         self.assertFalse(notice["excluded"])
         self.assertIn("ETS CO2 zero-rating is not enabled", notice["reasons"][0])

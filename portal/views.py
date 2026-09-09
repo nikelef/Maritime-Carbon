@@ -16,7 +16,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 from .engine.schema import ScenarioInput, Vessel, default_fuels
-from .engine.calculator import compare, fuel_choice_notices, strategy_actions
+from .engine.calculator import compare, fuel_choice_notices, strategy_actions, strategy_names
 from .engine.rules import ENGINE_VERSION, RULESET_VERSION, CHECKED_ON, SOURCES, REDUCTIONS, REFERENCE_G
 from .forms import ScenarioForm, VesselForm, FuelForm, MemberForm, VesselImportForm
 from .imports import COLUMNS, parse_vessels
@@ -287,19 +287,58 @@ def run_analysis(request, pk):
         return redirect("scenario", pk=pk)
 
 
+def same_strategy_outcome(left, right):
+    """Require identical section-03 details, section-04 costs and full ledgers."""
+    optional_details = {"replacement_priority", "first_step_comparison", "priority_step", "priority_note", "leg_remarks"}
+    def decisions(strategy):
+        # Missing and empty explanations render identically. Nonempty first-step
+        # comparisons and priority details are visible in section 03 and matter.
+        return [{k: v for k, v in d.items() if k not in optional_details or v}
+                for d in strategy["decisions"]]
+    return (decisions(left) == decisions(right) and left["annual"] == right["annual"]
+            and left["rows"] == right["rows"] and left["npv"] == right["npv"]
+            and left.get("total") == right.get("total"))
+
+
 def report_context(run, request):
     results = run.results
     # Older snapshots get an explanation from their own recorded inputs. Neither
     # the saved result nor the current editable case is changed or recalculated.
+    scenario = ScenarioInput.from_dict(run.inputs)
+    names = strategy_names(scenario)
     notices = results.get("fuel_choice_notices")
     if notices is None:
-        notices = fuel_choice_notices(ScenarioInput.from_dict(run.inputs))
+        notices = fuel_choice_notices(scenario)
     maximum = max(s["npv"] for s in results["strategies"]) or 1
-    strategies = [s | {"bar_width": max(1, s["npv"] / maximum * 100),
+    strategies = [s | {"name": names.get(s["key"], s["name"]),
+                       "bar_width": max(1, s["npv"] / maximum * 100),
                        "actions": s.get("actions") or strategy_actions(s)} for s in results["strategies"]]
-    selected = next((s for s in strategies if s["key"] == request.GET.get("strategy")), strategies[0])
     baseline = next(s for s in strategies if s["key"] == "baseline")
-    chart = {"annual": selected["annual"], "baseline": baseline["annual"], "strategies": [{"name": s["name"], "npv": s["npv"]} for s in strategies], "rows": selected["rows"]}
+    best = next(s for s in strategies if s["key"] == results["best_key"])
+    outcomes = []
+    aliases = {}
+    for strategy in strategies:
+        outcome = next((item for item in outcomes if same_strategy_outcome(strategy, item)), None)
+        if outcome is None:
+            outcome = strategy | {"evaluations": [], "rank": f"{len(outcomes) + 1:02d}",
+                                  "is_lowest": same_strategy_outcome(strategy, best),
+                                  "fuel_choice_note": ""}
+            outcomes.append(outcome)
+        outcome["evaluations"].append({"key": strategy["key"], "name": strategy["name"]})
+        aliases[strategy["key"]] = outcome
+        if strategy["key"] in ("fuel", "combined") and not any(d["blend"] > 1e-9 for d in strategy["decisions"]):
+            outcome["fuel_choice_note"] = "Fuel switching was evaluated; keeping the current sea fuels gave the lowest evaluated cost."
+    for outcome in outcomes:
+        action_name = outcome["actions"]["name"]
+        repeated = sum(item["actions"]["name"] == action_name for item in outcomes) > 1
+        outcome["display_name"] = f"{action_name} — {outcome['name']}" if repeated else action_name
+    renamed = {s["name"]: aliases[s["key"]]["display_name"] for s in results["strategies"]}
+    results = results | {"strategies": outcomes, "best_key": aliases[results["best_key"]]["key"],
+                         "sensitivities": [item | {"winner": renamed.get(item["winner"], item["winner"])}
+                                           for item in results.get("sensitivities", [])]}
+    selected = aliases.get(request.GET.get("strategy"), outcomes[0])
+    strategies = outcomes
+    chart = {"annual": selected["annual"], "baseline": baseline["annual"], "strategies": [{"name": s["display_name"], "npv": s["npv"]} for s in strategies], "rows": selected["rows"]}
     return {"run": run, "result": results, "selected": selected, "strategies": strategies, "baseline": baseline, "chart_data": chart, "sources": results.get("sources", SOURCES), "checked_on": results.get("checked_on", CHECKED_ON), "savings_percent": selected["savings"] / results["baseline_npv"] * 100 if results["baseline_npv"] else 0, "active_nav": "reports", "fuel_choice_notices": notices}
 
 
@@ -325,7 +364,7 @@ def export_run(request, pk, kind):
         response = HttpResponse(content_type="text/csv; charset=utf-8")
         response.write("\ufeff")
         writer = csv.writer(response)
-        extra_columns = [("baseline_fuel", "baseline_fuel"), ("alternative_fuel", "alternative"), ("baseline_fuel_t", "baseline_t"), ("alternative_fuel_t", "alternative_t"), ("sea_MGO_pilot_t", "pilot_t"), ("baseline_LNG_slip_pct", "baseline_slip_pct"), ("alternative_LNG_slip_pct", "alternative_slip_pct"), ("scoped_CH4_t", "scoped_ch4_t"), ("physical_energy_MJ", "energy_mj"), ("rewarded_energy_MJ", "rewarded_energy_mj"), ("RFNBO_energy_MJ", "rfnbo_energy_mj"), ("RFNBO_share", "rfnbo_share"), ("RFNBO_potential_shortfall_MJ", "rfnbo_deficit_mj"), ("GHG_penalty_EUR", "ghg_penalty_cost"), ("RFNBO_assumed_penalty_EUR", "rfnbo_penalty_cost"), ("current_sea_fuels_json", "baseline_fuels"), ("total_fuel_tonnes_json", "fuel_tonnes"), ("berth_fuels_json", "berth_fuels"), ("non_EU_berth_tonnes", "non_eu_berth_t"), ("sea_fuel_replacements_json", "fuel_replacements")]
+        extra_columns = [("baseline_fuel", "baseline_fuel"), ("alternative_fuel", "alternative"), ("baseline_fuel_t", "baseline_t"), ("alternative_fuel_t", "alternative_t"), ("sea_MGO_pilot_t", "pilot_t"), ("baseline_LNG_slip_pct", "baseline_slip_pct"), ("alternative_LNG_slip_pct", "alternative_slip_pct"), ("scoped_CH4_t", "scoped_ch4_t"), ("physical_energy_MJ", "energy_mj"), ("rewarded_energy_MJ", "rewarded_energy_mj"), ("RFNBO_energy_MJ", "rfnbo_energy_mj"), ("RFNBO_share", "rfnbo_share"), ("RFNBO_potential_shortfall_MJ", "rfnbo_deficit_mj"), ("GHG_penalty_EUR", "ghg_penalty_cost"), ("RFNBO_assumed_penalty_EUR", "rfnbo_penalty_cost"), ("current_sea_fuels_json", "baseline_fuels"), ("total_fuel_tonnes_json", "fuel_tonnes"), ("berth_fuels_json", "berth_fuels"), ("non_EU_berth_tonnes", "non_eu_berth_t"), ("sea_fuel_replacements_json", "fuel_replacements"), ("sea_leg_replacements_json", "leg_replacements")]
         writer.writerow(["run_id", "engine_version", "ruleset_version", "scenario_revision", "strategy", "vessel", "reporting_year", "attained_gCO2e_MJ", "target_gCO2e_MJ", "balance_tCO2e", "ets_tCO2e", "fuel_EUR", "electricity_EUR", "ETS_EUR", "FuelEU_penalty_EUR", "pool_EUR", "implementation_EUR", "total_EUR", "NPV_EUR", "bank_open_tCO2e", "bank_used_tCO2e", "bank_close_tCO2e", "pool_transfer_tCO2e", "pool_buy_tCO2e", "residual_deficit_tCO2e"] + [name for name, _ in extra_columns])
         keys = ("vessel", "year", "attained_g", "target_g", "balance_t", "ets_t", "fuel_cost", "electricity_cost", "ets_cost", "penalty_cost", "pool_cost", "implementation_cost", "total_cost", "npv_cost", "bank_open_t", "bank_used_t", "bank_close_t", "pool_transfer_t", "pool_buy_t", "residual_deficit_t")
         for strategy in run.results["strategies"]:
