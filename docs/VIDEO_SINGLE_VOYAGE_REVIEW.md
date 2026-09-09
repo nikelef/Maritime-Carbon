@@ -1,5 +1,9 @@
 # Maritime Carbon — 80-second single-voyage review
 
+Latest pitch revision: the original “Which fuel. Which voyage leg. At what cost?” introduction has been restored with wording for one bulk carrier. It is followed by full-width recordings of the app's welcome and dashboard pages, with matching marketing narration and no zoom or crop. This 27.27-second opening leads into the complete accepted 80-second walkthrough, for a total of approximately 1 minute 47 seconds. All input and result figures below remain the same.
+
+The latest deliverables are `Maritime_Carbon_One_Voyage_2026_Pitch.mp4` and `Maritime_Carbon_One_Voyage_2026_Pitch_Review.zip`, in the same local output folder. The original 80-second cut remains available. The walkthrough picture is copied without re-encoding, and its narration and pauses retain their original timing.
+
 This revision uses one fictional bulk carrier, Demo Atlas, one voyage and reporting year 2026 only. It replaces the earlier two-vessel video for review. The video has synthetic British English narration and one visible caption layer. No video has been published.
 
 ## Inputs shown

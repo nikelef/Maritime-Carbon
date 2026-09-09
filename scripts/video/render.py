@@ -39,8 +39,8 @@ def wrap(draw, text, face, width):
     return lines + [current]
 
 
-def card(kind):
-    path = OUT / "graphics" / f"{kind}.png"
+def card(kind, *, example_line="Two fictional vessels. A real app walkthrough.", destination=None):
+    path = destination or OUT / "graphics" / f"{kind}.png"
     im = Image.new("RGB", (1920, 1080), INK)
     d = ImageDraw.Draw(im)
     for radius in (250, 390, 540, 690, 840):
@@ -52,7 +52,7 @@ def card(kind):
         d.text((140, 244), "A FLEET DECISION, MADE VISIBLE", font=font(23, True), fill=GREEN)
         d.multiline_text((132, 316), "Which fuel.\nWhich voyage leg.\nAt what cost?", font=font(100, True), fill="white", spacing=7)
         d.text((140, 750), "FuelEU Maritime + EU ETS", font=font(38), fill="#c1d8d2")
-        d.text((140, 815), "Two fictional vessels. A real app walkthrough.", font=font(30), fill="#c1d8d2")
+        d.text((140, 815), example_line, font=font(30), fill="#c1d8d2")
     else:
         d.text((140, 288), "FROM INPUTS TO ACTION", font=font(24, True), fill=GREEN)
         d.multiline_text((134, 362), "A traceable decision\nfor your fleet.", font=font(92, True), fill="white", spacing=18)

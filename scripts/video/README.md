@@ -8,6 +8,24 @@ See [the single-voyage review notes](../../docs/VIDEO_SINGLE_VOYAGE_REVIEW.md).
 
 ## Latest 80-second revision
 
+The latest pitch edition adds the original branded introduction, followed by
+full-width welcome and dashboard pages, before this complete 80-second cut.
+After producing the single-voyage cut below, run:
+
+```powershell
+$env:PYTHONPATH='.tmp/video-deps'
+.\.venv\Scripts\python.exe -m scripts.video.pitch_opening prepare
+$env:DJANGO_DEBUG='1'
+.\.venv\Scripts\python.exe manage.py test scripts.video.capture_opening --noinput
+.\.venv\Scripts\python.exe -m scripts.video.pitch_opening render
+```
+
+This creates `Maritime_Carbon_One_Voyage_2026_Pitch.mp4` and its `_Review.zip`
+under `video-artifacts/single-voyage/`. Total duration is approximately 107 seconds.
+The renderer verifies that the accepted walkthrough's compressed picture packets
+are preserved, and retains its speech timing. The opening uses the same synthetic
+voice and one visible caption layer. It does not reuse the old two-vessel data.
+
 After installing the production dependencies below, run these commands in order:
 
 ```powershell
