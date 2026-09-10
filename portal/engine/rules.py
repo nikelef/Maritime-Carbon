@@ -1,11 +1,14 @@
 """Versioned planning rules. See docs/REGULATORY_BASIS.md for applicability."""
-ENGINE_VERSION = "6.6.0"
-RULESET_VERSION = "EU-2026-09-10"
+ENGINE_VERSION = "6.7.0"
+RULESET_VERSION = "EU-2026-09-10-r2"
 CHECKED_ON = "2026-09-10"
 REFERENCE_G = 91.16
 REDUCTIONS = {2025: .02, 2030: .06, 2035: .145, 2040: .31, 2045: .62, 2050: .80}
-GWP_CH4 = 28.0
-GWP_N2O = 265.0
+# FuelEU Annex I refers to RED Annex V C(4); MRV/ETS uses different GWP100.
+FUELEU_GWP_CH4 = 25.0
+FUELEU_GWP_N2O = 298.0
+ETS_GWP_CH4 = 28.0
+ETS_GWP_N2O = 265.0
 # Annex II FuelEU / Annex I MRV: fraction of fuel supplied, not of combusted fuel.
 LNG_CONSUMERS = {
     "otto_medium": ("Otto dual-fuel · medium speed · 3.1% slip", .031),
@@ -14,7 +17,8 @@ LNG_CONSUMERS = {
     "lbsi": ("Lean-burn spark-ignited · 2.6% slip", .026),
 }
 SOURCES = [
-    {"title": "European Commission · FuelEU annual prioritized allocation", "url": "https://transport.ec.europa.eu/document/download/d4426ccc-ef46-4292-8b6d-5bf7a620f5ba_en?filename=fueleu_guidance_document_for_shipping_companies.pdf#page=51", "detail": "8 October 2025 guidance, section 4.4, pages 51–52: optional annual attribution of MRV-eligible energy, including conventional fuels, to the Article 2 energy scope. The app elects lowest-WtW-first attribution; ETS remains separate."},
+    {"title": "European Commission · FuelEU GWP and RFNBO calculations", "url": "https://transport.ec.europa.eu/document/download/d4426ccc-ef46-4292-8b6d-5bf7a620f5ba_en?filename=fueleu_guidance_document_for_shipping_companies.pdf#page=38", "detail": "Sections 4.3.3 and 4.3.6: FuelEU CH4=25, N2O=298; RFNBO denominator reward through 2033. ETS retains CH4=28, N2O=265."},
+    {"title": "European Commission · FuelEU annual prioritized allocation", "url": "https://transport.ec.europa.eu/document/download/d4426ccc-ef46-4292-8b6d-5bf7a620f5ba_en?filename=fueleu_guidance_document_for_shipping_companies.pdf#page=51", "detail": "8 October 2025 guidance, section 4.4, pages 51–52: optional annual attribution of MRV-eligible energy, including conventional fuels, to the Article 2 energy scope. The app minimizes attained intensity including the elected RFNBO reward; ETS remains separate."},
     {"title": "FuelEU Maritime · Regulation (EU) 2023/1805", "url": "https://eur-lex.europa.eu/eli/reg/2023/1805/oj/eng", "detail": "Articles 2, 4, 5, 6, 10, 20, 21, 23; Annexes I, II and IV."},
     {"title": "European Commission · FuelEU implementation guidance", "url": "https://transport.ec.europa.eu/transport-modes/maritime/decarbonising-maritime-transport-fueleu-maritime/questions-and-answers-regulation-eu-20231805-use-renewable-and-low-carbon-fuels-maritime-transport_en", "detail": "Scope, fuel evidence, ship-specific banking and pooling."},
     {"title": "European Commission · Maritime ETS FAQ", "url": "https://climate.ec.europa.eu/areas-action/transport-decarbonisation/reducing-emissions-shipping-sector/faq-maritime-transport-eu-emissions-trading-system-ets_en", "detail": "Reporting-year phase-in, greenhouse gases and proportional extra-EU scope."},

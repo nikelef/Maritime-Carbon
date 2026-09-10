@@ -192,7 +192,7 @@ class DesktopReleaseTests(StaticLiveServerTestCase):
                         saved = artifact_dir / f"case-{index+1}.{extension}"
                         download.value.save_as(str(saved))
                         self.assertIn("leg_replacements", saved.read_text(encoding="utf-8-sig"))
-                        self.assertIn("annual_lowest_wtw", saved.read_text(encoding="utf-8-sig"))
+                        self.assertIn("annual_reward_aware", saved.read_text(encoding="utf-8-sig"))
                     audit = json.loads((artifact_dir / f"case-{index+1}.json").read_text(encoding="utf-8"))
                     audits.append((scenario.pk, audit))
                     best = next(s for s in audit["results"]["strategies"] if s["key"] == audit["results"]["best_key"])

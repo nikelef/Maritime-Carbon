@@ -35,8 +35,8 @@ class LegOptimizerTests(SimpleTestCase):
         self.assertEqual(len(used), 1)
         leg = used[0]
         self.assertEqual((leg["voyage"], leg["fuel"], leg["leg"]), (1, "MGO", "intra_t"))
-        oil_g = 13.5 + (3.114+.00005*28+.00018*265)*1e6/40500
-        mgo_g = 14.4 + (3.206+.00005*28+.00018*265)*1e6/42700
+        oil_g = 13.5 + (3.114+.00005*25+.00018*298)*1e6/40500
+        mgo_g = 14.4 + (3.206+.00005*25+.00018*298)*1e6/42700
         energy = 635*40500 + 140*42700
         baseline_ghg = 150*42700*mgo_g + (energy-150*42700)*oil_g
         expected_t = (baseline_ghg-target(2026)*energy)/(42700*(mgo_g-20))

@@ -1,7 +1,7 @@
 """Typed input contract shared by forms, saved scenarios and exports."""
 from dataclasses import dataclass, field, fields, asdict
 from math import isfinite, fsum
-from .rules import LNG_CONSUMERS
+from .rules import LNG_CONSUMERS, FUELEU_GWP_CH4, FUELEU_GWP_N2O
 
 
 def bounded(value, name, low, high):
@@ -80,7 +80,7 @@ class Fuel:
         if self.pathway == "hydrogen_cell" and (self.co2 or self.ch4 or self.n2o):
             raise ValueError("The hydrogen fuel-cell pathway has zero direct CO2, CH4 and N2O factors.")
         if not self.renewable and self.pathway != "methane":
-            combustion_g = (self.co2 + self.ch4 * 28 + self.n2o * 265) * 1e6 / self.lcv
+            combustion_g = (self.co2 + self.ch4 * FUELEU_GWP_CH4 + self.n2o * FUELEU_GWP_N2O) * 1e6 / self.lcv
             if self.co2 <= 0 or self.wtw < combustion_g - 1e-8:
                 raise ValueError(f"{self.code}: the fossil pathway needs positive CO2 and WtW at least as high as its combustion intensity. Review the factors together.")
         if self.supply_t is not None:
@@ -273,7 +273,7 @@ class Vessel:
 def default_fuels():
     # Oil-engine Annex II example pathways. Supplier BDN/monitoring plan overrides matter.
     def oil_wtw(lcv, co2, wtt):
-        return wtt + (co2 + .00005 * 28 + .00018 * 265) * 1e6 / lcv
+        return wtt + (co2 + .00005 * FUELEU_GWP_CH4 + .00018 * FUELEU_GWP_N2O) * 1e6 / lcv
     return [Fuel("HSFO", "HSFO · residual oil", 40500, oil_wtw(40500, 3.114, 13.5), 3.114, .00005, .00018, 470),
             Fuel("VLSFO", "VLSFO · residual oil assumption", 40500, oil_wtw(40500, 3.114, 13.5), 3.114, .00005, .00018, 575),
             Fuel("MGO", "Marine gas oil", 42700, oil_wtw(42700, 3.206, 14.4), 3.206, .00005, .00018, 720),

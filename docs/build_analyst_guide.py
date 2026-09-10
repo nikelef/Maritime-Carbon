@@ -73,7 +73,7 @@ def build():
     section.header.paragraphs[0].text = "MARITIME CARBON  |  ANALYST OPERATING GUIDE"
     footer = section.footer.paragraphs[0]
     footer.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    footer.add_run("Review draft · Engine 6.6.0  |  ")
+    footer.add_run("Review draft · Engine 6.7.0  |  ")
     field = OxmlElement("w:fldSimple"); field.set(qn("w:instr"), "PAGE")
     footer._p.append(field)
     doc.core_properties.title = "Maritime Carbon — Analyst operating guide"

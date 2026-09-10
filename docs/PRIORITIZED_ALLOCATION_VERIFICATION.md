@@ -1,6 +1,8 @@
 # Prioritized FuelEU allocation verification — 10 September 2026
 
-Engine 6.6.0; ruleset EU-2026-09-10.
+Historical engine 6.6.0; ruleset EU-2026-09-10. The RFNBO ordering and FuelEU
+GWP factors in this release were subsequently corrected in 6.7.0. Numerical
+examples below describe the earlier release; see RFNBO_GWP_VERIFICATION.md.
 
 ## Result
 

@@ -1,7 +1,9 @@
 # Implementation verification
 
-Current allocation release: see [engine 6.6 verification](PRIORITIZED_ALLOCATION_VERIFICATION.md)
-for annual prioritized FuelEU attribution, updated optimization and September 10 checks.
+Current release: see [engine 6.7 verification](RFNBO_GWP_VERIFICATION.md)
+for reward-aware allocation, separate FuelEU/ETS factors and September 10 checks.
+[Engine 6.6 verification](PRIORITIZED_ALLOCATION_VERIFICATION.md) records the
+preceding method, whose RFNBO ordering and FuelEU GWP factors were corrected.
 The dated records below describe earlier releases.
 
 Completed locally on 2026-09-07. LNG/RFNBO source review and engine revision are

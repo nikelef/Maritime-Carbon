@@ -2,7 +2,7 @@
 
 ## Analyst operating guide
 
-Review draft · Desktop application · Engine 6.6.0 · 10 September 2026
+Review draft · Desktop application · Engine 6.7.0 · 10 September 2026
 
 This guide explains how to build, check and interpret a fleet planning case in the FuelEU Maritime and EU ETS application. It is intended for analysts preparing budget comparisons and management recommendations. It describes the implemented model and its input requirements; it does not certify a fuel, approve a pool or replace a verifier's assessment.
 
@@ -107,7 +107,7 @@ This is an annual EUR amount applied equally to every strategy, such as common v
 
 ### 3.12 Voyage-scope confirmation and scope notes
 
-Confirm scope only after reviewing the actual routes and applicability for both regimes. The app uses ordinary-EU category weights to determine ETS scope and the FuelEU covered energy total: 100% for intra-EU sea and EU berth, 50% for EU/non-EU sea and 0% for outside-scope sea and non-EU berth. FuelEU then attributes eligible annual energy in lowest-WtW order. The confirmation records your review; it does not investigate port calls or resolve exceptions automatically.
+Confirm scope only after reviewing the actual routes and applicability for both regimes. The app uses ordinary-EU category weights to determine ETS scope and the FuelEU covered energy total: 100% for intra-EU sea and EU berth, 50% for EU/non-EU sea and 0% for outside-scope sea and non-EU berth. FuelEU then attributes eligible annual energy to minimize attained intensity, including any elected RFNBO reward. The confirmation records your review; it does not investigate port calls or resolve exceptions automatically.
 
 Use Scope and planning notes for the source of the annual consumption allocation, route assumptions, excluded activity and any qualifications. EEA timing differences, special ports, transhipment exclusions and derogations require separate assessment. The legal regimes have different boundaries; a convenient consumption category is not proof of applicability.
 
@@ -267,7 +267,7 @@ The value represents the fuel code throughout the case. If batches have differen
 
 ### 7.4 FuelEU well-to-tank factor
 
-For methane and RFNBO pathways, the form uses WtT rather than a directly entered complete WtW value. The engine adds the relevant physical combustion and methane-slip contribution. Enter the certified FuelEU-adjusted WtT on the accounting basis expected by this model, including any applicable carbon-accounting adjustment. Entering a complete WtW value here would count part of the emissions twice.
+For methane and RFNBO pathways, the form uses WtT rather than a directly entered complete WtW value. The engine adds the relevant physical combustion and methane-slip contribution using FuelEU CH4=25 and N2O=298. ETS calculations separately use CH4=28 and N2O=265. New-case oil defaults use the FuelEU factors; older saved complete WtW inputs remain as entered and require review before rerunning. Enter the certified FuelEU-adjusted WtT on the accounting basis expected by this model, including any applicable carbon-accounting adjustment. Entering a complete WtW value here would count part of the emissions twice.
 
 An adjusted WtT can be negative where the applicable pathway accounting requires an adjustment; it is not permission to invent an offset. Review the certificate and methodology together. Fossil LNG uses the fixed WtT default implemented in the rules, so that field cannot be freely varied.
 
@@ -299,7 +299,7 @@ For methanol and ammonia combustion and hydrogen internal-combustion pathways, t
 
 ### 7.10 Elective FuelEU RFNBO reward through 2033
 
-When enabled for a qualifying RFNBO, the model doubles that fuel's eligible contribution to the intensity denominator through 2033; from 2034 the multiplier is one. It does not double physical energy, halve the fuel invoice or zero ETS gases. This is a fixed assumption, not an optimized choice. Duplicate the case with the reward disabled if you need to examine its influence.
+When enabled for a qualifying RFNBO, the model doubles that fuel's eligible contribution to the intensity denominator through 2033; from 2034 the multiplier is one. It does not double physical energy, halve the fuel invoice or zero ETS gases. The reward election is fixed, while the annual allocation optimizes its denominator benefit. Duplicate the case with the reward disabled if you need to examine its influence.
 
 ### 7.11 Evidence and pathway reference
 
@@ -329,11 +329,11 @@ Policy names describe permissions. The large recommendation names what the evalu
 
 The app ranks the present cost of the evaluated strategies. Savings are measured against the current-fuel/ship-settlement reference, not necessarily against last year's invoice or your existing external pool. Undiscounted total is the sum of nominal modelled costs over the horizon. In a one-year case the present and undiscounted totals coincide.
 
-“Lowest evaluated” is deliberate. The search starts with a fuel-level incumbent, then varies voyage/fuel/leg allocations using sampled ranges, continuous refinement, FuelEU source-exhaustion boundaries, verified compliance candidates and supply boundaries. It also transfers selected energy between legs. The bounded search does not guarantee the global mathematical minimum across all fleet allocations, technologies or voyage schedules.
+“Lowest evaluated” is deliberate. The search starts with a fuel-level incumbent, then varies voyage/fuel/leg allocations using sampled ranges, continuous refinement, FuelEU source-exhaustion and RFNBO allocation-order boundaries, verified compliance candidates and supply boundaries. It also transfers selected energy between legs. The bounded search does not guarantee the global mathematical minimum across all fleet allocations, technologies or voyage schedules.
 
 ### 8.4 Strategy remarks and operating choices
 
-Read the selected vessel, voyage and category together. A remark such as “Voyage 1 · Intra-EU sea: replace 21.739 t/year of MGO with 21.096 t/year of HVO” describes an annual same-leg substitution. It does not instruct you to spread the replacement proportionally across the vessel's other legs. The quantities repeat for each reporting year.
+Read the selected vessel, voyage and category together. A remark such as “Voyage 1 · Intra-EU sea: replace 23.181 t/year of MGO with 22.496 t/year of HVO” describes an annual same-leg substitution. It does not instruct you to spread the replacement proportionally across the vessel's other legs. The quantities repeat for each reporting year.
 
 The operating-choice section also shows retained current fuels, total alternative tonnes, service replaced, OPS status and any pilot requirement. Summary tonnes are rounded for readability; use the JSON audit's unrounded leg quantities when reproducing a calculation or sizing a precise compliance-closing substitution. Re-evaluate any practical purchase rounding rather than assuming it preserves the exact balance.
 
@@ -353,11 +353,13 @@ Reconcile the sequence, not just the raw balance: a ship can start with a negati
 
 ### 8.7 FuelEU allocation and fuel pathway ledgers
 
-Open “FuelEU annual prioritized energy allocation” to inspect each ship’s covered energy, eligible source energy and allocated MJ. The app fills annual covered energy from lowest to highest WtW, including conventional fuels and eligible alternatives. A fuel’s full EU/non-EU sea consumption can be attributed, while only half of that leg’s total energy determines the covered amount. Attribution can span the ship’s eligible voyages and EU berth use within the same reporting year.
+Open “FuelEU annual prioritized energy allocation” to inspect each ship’s covered energy, eligible source energy and allocated MJ. The app minimizes annual attained intensity, including the denominator benefit of eligible RFNBO with an elected reward. Conventional fuels retain their internal lowest-WtW priority. The ledger shows physical WtW and each source’s denominator reward. A fuel’s full EU/non-EU sea consumption can be attributed, while only half of that leg’s total energy determines the covered amount. Attribution can span the ship’s eligible voyages and EU berth use within the same reporting year.
 
 For example, 100 MJ on EU/non-EU voyages gives 50 MJ covered. If the eligible inventory is 20 MJ alternative at WtW 20, 15 MJ conventional A at 85, 25 MJ B at 90 and 40 MJ C at 95, attribution is 20 MJ alternative, 15 MJ A and 15 MJ B. C receives no attribution. Physical consumption and purchase costs still include all 100 MJ; ETS still applies its own proportional scope.
 
-This is an elected FuelEU accounting method, separate from the cost-based “replace first” comparison and physical replacement instructions. It applies to current-fuel baselines too. RFNBO reward is applied after physical attribution. Outside-scope sea and non-EU berth cannot supply the inventory in this model; MRV-reported FuelEU-exempt activity needs separate assessment. Historical reports keep their saved proportional results; run a new comparison for the new method.
+This elected FuelEU accounting method applies to baselines and candidates. It is separate from physical replacement and the cost-based “replace first” comparison. With active RFNBO reward, allocation minimizes emissions divided by covered physical energy plus the extra RFNBO reward energy. Neither physical-WtW ordering nor WtW/reward sorting reliably minimizes this ratio. Outside-scope sea and non-EU berth are excluded; MRV-reported FuelEU-exempt activity needs separate assessment. Historical reports retain their saved method and factors; review saved fuel inputs before rerunning.
+
+For example, with 50 MJ covered, 40 MJ biofuel at WtW 20, 20 MJ RFNBO at 25 and 40 MJ fossil at 90 available, the active reward selects 30 MJ biofuel plus 20 MJ RFNBO. Intensity is (30×20 + 20×25)/(50+20) = 15.714 gCO2e/MJ, compared with 17.5 from physical-WtW ordering. With the reward disabled or expired, lowest-WtW order applies and the intensity is 21. This allocation improves accounting for the same physical fuel inventory.
 
 Use this section to inspect current fuel tonnes by voyage/category, berth fuel, alternative tonnes, separate MGO pilot, methane-slip assumptions, scoped CH4 and RFNBO energy measures. Physical energy and rewarded energy are different quantities. The possible RFNBO shortfall is an energy measure, not a tonne-of-CO2 balance.
 
@@ -377,7 +379,7 @@ Create a fictional 2026-only cargo-vessel case. Set EUA price to EUR 85/tCO2e, e
 
 Enter Voyage 1 HSFO: 200 tonnes intra-EU and 800 tonnes EU/non-EU; MGO: 80 tonnes intra-EU, 20 tonnes EU/non-EU and 50 tonnes EU berth; VLSFO: 10 tonnes intra-EU and 50 tonnes EU/non-EU. Retain the library's illustrative prices: HSFO 470, VLSFO 575, MGO 720 and HVO 1,550 EUR/tonne. For this exercise only, record assumed HVO evidence and enable both renewable eligibility and ETS CO2 zero-rating. Retain its illustrative WtW of 20 and LCV of 44,000 MJ/tonne.
 
-With these inputs, the checked regression result replaces approximately 21.738698 tonnes of MGO with 21.096418 tonnes of HVO on Voyage 1's intra-EU sea category. Total annual cost is approximately EUR 833,084.91, compared with EUR 834,421.07 for the current-fuel external-pooling option. The current-fuel baseline already benefits from conventional-fuel prioritization. The replacement supplies the removed energy on that same leg and closes the modelled GHG deficit without pooling. These figures are reproducibility examples, not forecasts for a real vessel.
+With these inputs, the checked regression result replaces approximately 23.180978 tonnes of MGO with 22.496085 tonnes of HVO on Voyage 1's intra-EU sea category. Total annual cost is approximately EUR 833,822.73, compared with EUR 835,273.05 for the current-fuel external-pooling option. The current-fuel baseline already benefits from conventional-fuel prioritization. The replacement supplies the removed energy on that same leg and closes the modelled GHG deficit without pooling. These figures are reproducibility examples, not forecasts for a real vessel.
 
 ### 9.2 Two vessels: test scarce supply, a bank and OPS
 
@@ -438,9 +440,9 @@ Current activity and selected quantities repeat annually. Some multi-year rules 
 
 ## 12. References and version control
 
-- Commission allocation guidance: https://transport.ec.europa.eu/document/download/d4426ccc-ef46-4292-8b6d-5bf7a620f5ba_en?filename=fueleu_guidance_document_for_shipping_companies.pdf#page=51 (section 4.4, pages 51–52).
+- Commission allocation guidance: https://transport.ec.europa.eu/document/download/d4426ccc-ef46-4292-8b6d-5bf7a620f5ba_en?filename=fueleu_guidance_document_for_shipping_companies.pdf#page=51 (section 4.4, pages 51–52; see also section 4.3.3 for FuelEU GWP100 and section 4.3.6 for RFNBO).
 
-The following sources were consulted for the regulatory context. The guide's descriptions of field behavior, search limits, accounting sequence and exports are based on the application's engine 6.6.0, forms and release tests. Regulatory changes after the recorded ruleset date require review before use; the guide does not assert a new legal ruleset.
+The following sources were consulted for the regulatory context. The guide's descriptions of field behavior, search limits, accounting sequence and exports are based on the application's engine 6.7.0, forms and release tests. Regulatory changes after the recorded ruleset date require review before use; the guide does not assert a new legal ruleset.
 
 - European Commission, Maritime ETS general guidance, especially section 5.2.2 on sustainable-fuel CO2 zero-rating: https://climate.ec.europa.eu/document/download/31875b4f-39b9-4cde-a4e2-fbb8f65ee703_en?filename=policy_transport_shipping_gd1_maritime_en.pdf
 - European Commission, Maritime ETS questions and answers, including reporting-year coverage and treatment of alternative fuels: https://climate.ec.europa.eu/areas-action/transport-decarbonisation/reducing-emissions-shipping-sector/faq-maritime-transport-eu-emissions-trading-system-ets_en

@@ -1,6 +1,6 @@
 # Using LNG and RFNBOs
 
-Available in the Django customer application, engine 6.0.0. These are planning
+Available in the Django customer application, engine 6.7.0. These are planning
 pathways, not fuel certificates or technical approvals. Prices are illustrative.
 
 ## Set up a vessel
@@ -11,7 +11,7 @@ pathways, not fuel certificates or technical approvals. Prices are illustrative.
    bio-LNG and e-LNG each need the correct engine class for the relevant stream.
    An existing LNG vessel can compare e-LNG or bio-LNG; an oil vessel can evaluate
    conversion to LNG, methanol, ammonia or hydrogen where technically supported.
-3. Enter annual main-fuel tonnes separately from MGO pilot and EU berth MGO.
+3. Enter annual consumption by fuel, voyage and sea/berth category, including pilot.
    Do not count pilot fuel twice. Enter the alternative system's pilot fraction,
    relative energy requirement, conversion/downtime and incremental annual costs.
 4. Confirm technical compatibility and record the technical-review reference.
@@ -32,7 +32,8 @@ not the final RFNBO energy share and is not a mass/volume blending specification
 - RFNBO choices are e-LNG, e-methanol, e-ammonia, hydrogen fuel cell, hydrogen
   combustion and e-diesel. A chemical name alone does not establish RFNBO status.
 - Enter the certified **FuelEU-adjusted WtT** factor for RFNBOs/bio-LNG, not a
-  complete WtW number. The engine adds physical consumer emissions. Review any
+  complete WtW number. The engine adds physical consumer emissions using FuelEU
+  GWP100 CH4=25 and N2O=298. ETS separately uses CH4=28 and N2O=265. Review any
   carbon-accounting adjustment with the supplier/verifier to avoid double counting.
 - Provide measured CH4/N2O factors where requested. Blank means unknown, not zero.
   The application will not enable the pathway until the required fields and
@@ -42,7 +43,10 @@ not the final RFNBO energy share and is not a mass/volume blending specification
   the review; it does not inspect or authenticate certificates.
 - The optional RFNBO reward is enabled initially for eligible RFNBOs through 2033.
   It affects the intensity denominator only. Disable it for a no-reward comparison;
-  the search does not choose that election for you. CH4/N2O remain in ETS from 2026.
+  the search does not choose that election for you. Annual attribution minimizes
+  attained intensity including the elected reward. It can prioritize RFNBO over
+  lower physical-WtW fuel when the denominator benefit improves the total ratio.
+  Conventional fuels retain internal lowest-WtW priority. CH4/N2O remain in ETS from 2026.
 - Set annual supply caps and actual quoted prices. Conversion costs belong in
   the vessel editor, not in the per-tonne fuel price unless genuinely quoted there.
 
@@ -64,6 +68,11 @@ across years and ships in the case; use separate cases where that assumption dif
 Only one selected alternative system per vessel is searched in a case. Duplicate
 the case to compare another technology. The model does not establish a global
 fleet optimum or cover mixed-engine/load-dependent slip, additional venting,
-non-MGO berth/pilot fuels, all port-call obligations or every voyage exemption.
+non-MGO alternative-system pilot, all port-call obligations or every voyage exemption.
 See [the regulatory calculation contract](REGULATORY_BASIS.md) before using
 results for a customer decision.
+
+The allocation ledger shows each source's physical WtW, denominator reward,
+eligible MJ and allocated MJ. Saved reports retain the original engine and
+results. Review older saved complete WtW inputs against the FuelEU 25/298 basis
+before rerunning; user-entered factors are not silently replaced by new defaults.

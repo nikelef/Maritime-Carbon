@@ -165,7 +165,12 @@ class StrategyActionTests(SimpleTestCase):
         self.assertEqual(row["pool_cost"], 0)
         self.assertEqual(row["pool_buy_t"], 0)
         self.assertFalse(row["pool_used"])
-        self.assertAlmostEqual(row["bank_close_t"], 17.51053482365166)
+        # Annual allocation takes all eligible MGO (100 t) after OPS, then oil.
+        energy = 635*40500+90*42700+expected_mwh*3600
+        oil_g = 13.5+(3.114+.00005*25+.00018*298)*1e6/40500
+        mgo_g = 14.4+(3.206+.00005*25+.00018*298)*1e6/42700
+        ghg = 100*42700*mgo_g+(energy-expected_mwh*3600-100*42700)*oil_g
+        self.assertAlmostEqual(row["bank_close_t"], (89.3368*energy-ghg)/1e6)
         self.assertAlmostEqual(fuel["npv"], 812083.053874269)
 
     def test_actual_external_pooling_remains_visible_without_shore_power(self):
@@ -176,7 +181,12 @@ class StrategyActionTests(SimpleTestCase):
         self.assertTrue(actions["pooling_used"])
         self.assertAlmostEqual(result["pool_cost"], actions["external_pool_t"] * 190)
         self.assertEqual(actions["electricity_mwh"], 0)
-        self.assertAlmostEqual(result["npv"], 834421.0734035062)
+        energy = 635*40500+140*42700
+        oil_g = 13.5+(3.114+.00005*25+.00018*298)*1e6/40500
+        mgo_g = 14.4+(3.206+.00005*25+.00018*298)*1e6/42700
+        ghg = 150*42700*mgo_g+(energy-150*42700)*oil_g
+        expected_pool = (ghg-89.3368*energy)/1e6*190
+        self.assertAlmostEqual(result["pool_cost"], expected_pool)
 
     def test_zero_price_external_pool_is_identified_by_quantity(self):
         data = shore_power_case()

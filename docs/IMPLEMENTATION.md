@@ -56,9 +56,16 @@ external launch requirements, not claims of this local implementation.
 
 ## Annual FuelEU attribution · engine 6.6.0
 
-FuelEU now uses a separate annual lowest-WtW source allocator, covering both
+Engine 6.6 introduced a separate annual lowest-WtW source allocator, covering both
 alternative and conventional fuels. ETS, physical consumption, fuel purchases
 and supply constraints remain proportional/physical. The continuous optimizer
 checks attribution capacity boundaries and verifies compliance roots. Reports
 and CSV/JSON expose source energy; saved earlier reports remain unchanged.
 See REGULATORY_BASIS.md for the elected method and excluded activity.
+
+## RFNBO/GWP correction · engine 6.7.0
+
+Current allocation minimizes the rewarded intensity ratio. FuelEU uses separate
+25/298 GWP100 factors; ETS retains 28/265. The leg optimizer includes reward-order
+and capacity boundaries on both sides of reward expiry. See REGULATORY_BASIS.md
+and RFNBO_GWP_VERIFICATION.md. The 6.6 section above records the preceding method.

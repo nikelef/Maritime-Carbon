@@ -232,9 +232,29 @@ class FuelReplacementReportTests(TestCase):
         replacements = {item["fuel"]: item for item in json.loads(row["sea_fuel_replacements_json"])}
         self.assertEqual(replacements["MGO"]["replaced_t"], 100)
         self.assertEqual(replacements["HSFO"]["replaced_t"], 0)
-        self.assertEqual(row["FuelEU_allocation_method"], "annual_lowest_wtw")
+        self.assertEqual(row["FuelEU_allocation_method"], "annual_reward_aware")
         self.assertEqual(json.loads(row["FuelEU_annual_allocation_json"]), strategy["rows"][0]["fueleu_allocation"])
         self.assertContains(response, "FuelEU annual prioritized energy allocation")
+        self.assertContains(response, "Denominator reward")
+
+    def test_historical_wtw_order_is_not_relabelled_as_reward_aware(self):
+        results = json.loads(json.dumps(self.run.results))
+        results["fueleu_allocation_method"] = "annual_lowest_wtw"
+        for strategy in results["strategies"]:
+            for row in strategy["rows"]:
+                row["fueleu_allocation_method"] = "annual_lowest_wtw"
+                for source in row["fueleu_allocation"]:
+                    source.pop("reward_multiplier", None)
+        legacy = AnalysisRun.objects.create(
+            company=self.run.company, scenario=self.scenario, scenario_name=self.run.scenario_name,
+            scenario_revision=1, inputs=self.run.inputs, results=results,
+            input_digest=self.run.input_digest, engine_version="6.6.0", ruleset_version="EU-2026-09-10",
+            created_by=self.run.created_by)
+        response = self.client.get(reverse("report", args=[legacy.pk]))
+        self.assertContains(response, "Historical report: FuelEU retains the saved physical-WtW allocation")
+        self.assertNotContains(response, "Denominator reward")
+        legacy.refresh_from_db()
+        self.assertEqual(legacy.results, results)
 
     def test_historical_proportional_report_is_not_recalculated(self):
         results = json.loads(json.dumps(self.run.results))

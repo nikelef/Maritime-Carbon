@@ -73,9 +73,14 @@ def optimize_legs(scenario, use_pool):
         # FuelEU attribution changes slope whenever a cumulative source capacity
         # reaches the Article 2 energy total. Whole-line interpolation of the
         # compliance balance is no longer valid. Split at all such boundaries.
-        kinks = allocation_breakpoints(pa, pb, low, high)
-        points.update(kinks)
         years = range(scenario.start_year, scenario.end_year+1)
+        # The reward expires in 2034: include each distinct allocation regime.
+        regimes = {year <= 2033: year for year in years}
+        kinks = set()
+        for year in regimes.values():
+            kinks.update(allocation_breakpoints(physical(index, year, left),
+                                                physical(index, year, right), low, high))
+        points.update(kinks)
         other_balances = {year: fsum(physical(j, year, d)["balance_t"]
                           for j, d in enumerate(current) if j != index) for year in years}
         residual_cache = {}
@@ -98,7 +103,7 @@ def optimize_legs(scenario, use_pool):
                 residual_cache[t] = values
             return residual_cache[t]
 
-        boundaries = sorted({low, high} | kinks)
+        boundaries = sorted(points)
         for start, end in zip(boundaries, boundaries[1:]):
             for position, (x, y) in enumerate(zip(residuals(start), residuals(end))):
                 if x*y >= 0 or abs(y-x) < 1e-12:

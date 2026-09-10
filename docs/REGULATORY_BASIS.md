@@ -1,7 +1,7 @@
 # Regulatory basis and calculation contract
 
-Allocation source review: 2026-09-10. Ruleset: `EU-2026-09-10`. Engine: `6.6.0`.
-Earlier dated sections below record the history; the 6.6 allocation contract supersedes their proportional FuelEU attribution.
+Allocation source review: 2026-09-10. Ruleset: `EU-2026-09-10-r2`. Engine: `6.7.0`.
+Earlier dated sections below record the history; the current allocation contract supersedes proportional attribution and the 6.6 physical-WtW ordering when an RFNBO reward applies.
 This is a bounded planning model, not a statement of universal legal applicability.
 
 ## Sources
@@ -74,7 +74,7 @@ emissions are `m × 2.75 × (1-s)` tonnes CO2, `m × s` tonnes CH4 and
 `m × 0.00011 × (1-s)` tonnes N2O. Thus slip is neither added twice nor treated
 as combusted CO2. LNG LCV is 49,100 MJ/t. Its FuelEU WtT default is 18.5 g/MJ;
 these reference factors are locked in the customer form. Derived intensity is
-`WtT + [CO2/t + 28×CH4/t + 265×N2O/t] × 1e6 / LCV`.
+`WtT + [CO2/t + 25×CH4/t + 298×N2O/t] × 1e6 / LCV`.
 ETS uses the same physical consumer factors, applying scope/phase-in and any
 separately recorded renewable CO2 zero-rating. WtT never enters ETS emissions.
 
@@ -103,7 +103,7 @@ With physical in-scope energy `E` (including OPS), and eligible RFNBO energy
 `scoped lifecycle emissions [g] / (E + (reward-1) × R)`.
 The reward is 2 through 2033 and 1 from 2034. Annex IV compliance balance still
 uses **physical E**, not the rewarded denominator. The per-fuel reward setting
-is a fixed case assumption; the search does not optimize that election.
+is a fixed case assumption; annual allocation optimizes its denominator benefit. The search does not change the election.
 
 FuelEU eligibility and ETS CO2 zero-rating have separate controls. Both require
 an evidence reference; checking a box is not verification of RED certification,
@@ -354,15 +354,16 @@ Implementation contract:
 - Build a separate annual source inventory using full intra-EU and EU–non-EU
   sea consumption and EU berth consumption. Include alternative and pilot fuel
   only to the extent physically consumed in those eligible categories.
-- Group by fuel and consumer; rank by entered/derived WtW gCO2e/MJ, lowest first.
-  Break ties by fuel code and consumer. Shore electricity has zero intensity.
-  No hard-coded renewable-first classification overrides the actual intensity.
+- Group by fuel and consumer. Minimize attained intensity including elected RFNBO
+  rewards. Without an active reward, rank by physical WtW, lowest first.
+  Shore electricity has zero intensity and reward 1. Conventional fuels retain
+  internal lowest-WtW priority. Deterministic ties use physical WtW, code and consumer.
 - Fill the covered physical energy total, using a partial final source where
   needed. All source energies remain bounded by their eligible consumption.
-- Apply any elected RFNBO reward to allocated RFNBO MJ afterwards. Physical
-  compliance energy is not doubled. RFNBO fuel-energy share excludes allocated
-  electricity. Source order follows physical WtW; the RFNBO reward is not itself
-  an allocation-order optimization variable.
+- Apply the reward in the intensity denominator while choosing attribution;
+  physical compliance energy is not doubled. RFNBO fuel-energy share excludes
+  allocated electricity. The reward is 2 through 2033, 1 thereafter, with a
+  fixed per-fuel election. The chosen order can change when that reward expires.
 - Compute ETS separately from actual mass and proportional voyage scope.
   Purchases and annual supply caps retain all consumption, including excluded use.
 
@@ -384,3 +385,53 @@ source inventory. It cannot distinguish MRV-reported FuelEU-exempt activity from
 wholly ineligible activity. Such exempt activity, intermediate port stops and
 ship-specific EEA/exemption cases still require separate assessment; they must
 not be represented as freely eligible outside-scope fuel.
+
+
+## RFNBO reward-aware allocation and separate GWP100 · engine 6.7.0
+
+Basis: Commission FuelEU guidance sections 4.3.3 (pages 38–39), 4.3.6 (pages
+46–50) and 4.4 (pages 51–52), and FuelEU Annex I / RED Annex V Part C(4).
+[Official guidance](https://transport.ec.europa.eu/document/download/d4426ccc-ef46-4292-8b6d-5bf7a620f5ba_en?filename=fueleu_guidance_document_for_shipping_companies.pdf#page=38).
+
+FuelEU uses CH4=25 and N2O=298; MRV/ETS uses CH4=28 and N2O=265. Separate named
+constants prevent cross-regime reuse. Derived methane/RFNBO intensities, new-case
+oil WtW defaults and fossil input consistency checks use the FuelEU values.
+ETS gases retain their ETS factors. Manually entered complete WtW values remain
+user inputs: old saved fuel values are not silently rewritten. Review those
+values against the FuelEU basis before rerunning older cases. Historic reports
+remain immutable and display their original method/version.
+
+For each ship/year and physical candidate, solve:
+
+`min I = sum(g_i*x_i) / [E + sum((r_i-1)*x_i)]`
+
+subject to `sum(x_i)=E` and `0 <= x_i <= eligible_energy_i`. Here `E` is physical
+Article 2 covered MJ, `g_i` is physical WtW, and `r_i` is 2 for reward-enabled,
+eligible RFNBO through 2033 and 1 otherwise. This is the application's elected
+minimum-intensity policy under the permitted free-allocation guidance, not a
+statutory mandatory ordering. Reward election remains a user assumption.
+
+The engine solves the linear-fractional allocation by iteratively filling the
+inventory in ascending `g_i - I*(r_i-1)` and recalculating I until convergence.
+At convergence the minimum of `N-I*D` is zero, certifying the fixed-inventory
+intensity minimum to numerical tolerance. Physical-WtW sorting and sorting by
+`g_i/r_i` alone do not solve this mixed-denominator problem. The calculation
+supports OPS, negative intensities, partial final sources and deterministic ties.
+
+Example: with 50 MJ covered and eligible 40 MJ biofuel at 20 g/MJ, 20 MJ RFNBO
+at 25 and 40 MJ fossil at 90, the active reward selects 30 bio + 20 RFNBO:
+`(30*20+20*25)/(50+20) = 15.7142857 g/MJ`. Physical-WtW-first attribution gives
+17.5. With reward disabled or expired, selection returns to 40 bio + 10 RFNBO,
+and intensity is 21 g/MJ. Physical purchases, ETS and fuel supply do not change.
+
+The fleet optimizer recomputes this minimum for every baseline and candidate.
+Line searches include both source-capacity and reward-order boundaries in every
+active reward regime, including horizons crossing 2033/2034. Compliance roots
+are checked against actual profiles. The annual attribution problem is solved;
+the overall fleet-cost search remains bounded, without a global-optimum claim.
+The post-2033 conditional subtarget uses the chosen attribution and its existing
+separate shortfall stress test; no new RFNBO flexibility mechanism is introduced.
+
+Exports identify `annual_reward_aware` and include each source's
+`reward_multiplier`. The old `annual_lowest_wtw` marker identifies 6.6 snapshots.
+See RFNBO_GWP_VERIFICATION.md for independent numerical and integration checks.

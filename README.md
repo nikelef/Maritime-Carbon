@@ -94,7 +94,9 @@ checked on each protected request. The current supported case limit is 20 ships.
 - Reporting years 2025–2050 and the enacted FuelEU intensity-reduction pathway.
 - Annual FuelEU balances and consecutive-deficit penalties **per ship**.
 - Annual prioritized FuelEU attribution: eligible energy sources, including
-  conventional fuels and alternatives, fill covered energy in lowest-WtW order.
+  conventional fuels and alternatives, fill covered energy to minimize attained
+  intensity including the elected RFNBO reward. Without an active reward this
+  reduces to lowest-WtW order. FuelEU CH4/N2O factors are 25/298; ETS uses 28/265.
   Full EU–non-EU consumption is eligible; ETS remains proportional.
 - ETS phase-in by **emissions reporting year**, proportional voyage allocation,
   and CH4/N2O from 2026. Eligible renewable CO2 zero-rating does not erase these gases.
@@ -148,9 +150,10 @@ Affected reports show a prominent partial-cost warning.
 
 Existing Django cases keep their original fuel library. Use **Add available fuel
 pathways** on the case page to extend it without replacing existing assumptions.
-Engine 6.6.0 uses ruleset EU-2026-09-10. Saved reports retain their original
+Engine 6.7.0 uses ruleset EU-2026-09-10-r2. Saved reports retain their original
 engine, inputs and results; pre-6.6 reports disclose their proportional FuelEU
-attribution and must be rerun to use the new method. See the
+attribution, while 6.6 reports retain physical-WtW ordering. Review saved fuel
+inputs before rerunning with the current method. See the
 [LNG/RFNBO setup guide](docs/ALTERNATIVE_FUELS.md) for the new inputs.
 
 This is a planning product, not a verifier, compliance filing service or fuel
@@ -211,3 +214,7 @@ templates/ + static/         Responsive customer interface
 docs/                        Regulatory basis, deployment and verification
 SECURITY.md                  Security controls and production secrets guide
 ```
+
+Current correction release: engine **6.7.0**, ruleset **EU-2026-09-10-r2**.
+See [RFNBO and GWP verification](docs/RFNBO_GWP_VERIFICATION.md). Saved results
+retain their original factors and method; review saved complete WtW inputs before rerunning.

@@ -17,7 +17,7 @@ def reviewed_case(code="LNG", **kwargs):
             fuel.eligible = True
             fuel.ets_eligible = True
             fuel.evidence = "TEST ONLY: certified production / carbon adjustment / engine factors"
-            fuel.wtt = 10 - (fuel.co2 + (fuel.ch4 or 0) * 28 + (fuel.n2o or 0) * 265) * 1e6 / fuel.lcv
+            fuel.wtt = 10 - (fuel.co2 + (fuel.ch4 or 0) * 25 + (fuel.n2o or 0) * 298) * 1e6 / fuel.lcv
             if fuel.measured_factors_required:
                 fuel.ch4 = 0
                 fuel.n2o = .0001
@@ -42,7 +42,7 @@ class LNGReferenceTests(SimpleTestCase):
                 non_co2 = 28 * slip + 265 * .00011 * (1 - slip)
                 self.assertAlmostEqual(emissions_factor(fuel, 2025, consumer), co2)
                 self.assertAlmostEqual(emissions_factor(fuel, 2026, consumer), co2 + non_co2)
-                self.assertAlmostEqual(fuel_intensity(fuel, consumer), 18.5 + (co2 + non_co2) * 1e6 / 49100)
+                self.assertAlmostEqual(fuel_intensity(fuel, consumer), 18.5 + (co2 + 25*slip + 298*.00011*(1-slip)) * 1e6 / 49100)
 
     def test_same_gas_different_consumers_have_different_results(self):
         data = reviewed_case()
@@ -167,7 +167,7 @@ class RFNBOReferenceTests(SimpleTestCase):
         fuel.n2o += .001
         high = profile(data.vessels[0], data, 2026, 1)
         self.assertAlmostEqual(high["ets_t"] - low["ets_t"], low["alternative_t"] * .001 * 265)
-        self.assertAlmostEqual(high["attained_g"] - low["attained_g"], .001 * 265 * 1e6 / 18600 / 2)
+        self.assertAlmostEqual(high["attained_g"] - low["attained_g"], .001 * 298 * 1e6 / 18600 / 2)
 
     def test_hydrogen_fuel_cell_and_combustion_are_distinct_pathways(self):
         data = reviewed_case("E_HYDROGEN")
