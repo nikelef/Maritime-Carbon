@@ -73,7 +73,7 @@ def build():
     section.header.paragraphs[0].text = "MARITIME CARBON  |  ANALYST OPERATING GUIDE"
     footer = section.footer.paragraphs[0]
     footer.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    footer.add_run("Review draft · Engine 6.5.2  |  ")
+    footer.add_run("Review draft · Engine 6.6.0  |  ")
     field = OxmlElement("w:fldSimple"); field.set(qn("w:instr"), "PAGE")
     footer._p.append(field)
     doc.core_properties.title = "Maritime Carbon — Analyst operating guide"
@@ -95,7 +95,7 @@ def build():
         elif block.startswith("## "):
             p = doc.add_paragraph(block[3:], "Heading 1")
             # Start the handbook after its compact opening and reading route.
-            if block.startswith("## 1."):
+            if block.startswith(("## 1.", "## 12.")):
                 p.paragraph_format.page_break_before = True
         elif block.startswith("### "):
             doc.add_paragraph(block[4:], "Heading 2")

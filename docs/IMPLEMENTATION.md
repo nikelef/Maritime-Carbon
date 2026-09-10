@@ -53,3 +53,12 @@ Regression tests use independent expected values for the current calculation con
 Implementation verification is recorded in `VERIFICATION.md`. Production hosting,
 PostgreSQL deployment validation and independent regulatory/security sign-off are
 external launch requirements, not claims of this local implementation.
+
+## Annual FuelEU attribution · engine 6.6.0
+
+FuelEU now uses a separate annual lowest-WtW source allocator, covering both
+alternative and conventional fuels. ETS, physical consumption, fuel purchases
+and supply constraints remain proportional/physical. The continuous optimizer
+checks attribution capacity boundaries and verifies compliance roots. Reports
+and CSV/JSON expose source energy; saved earlier reports remain unchanged.
+See REGULATORY_BASIS.md for the elected method and excluded activity.

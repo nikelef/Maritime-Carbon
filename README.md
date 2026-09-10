@@ -93,6 +93,9 @@ checked on each protected request. The current supported case limit is 20 ships.
 
 - Reporting years 2025–2050 and the enacted FuelEU intensity-reduction pathway.
 - Annual FuelEU balances and consecutive-deficit penalties **per ship**.
+- Annual prioritized FuelEU attribution: eligible energy sources, including
+  conventional fuels and alternatives, fill covered energy in lowest-WtW order.
+  Full EU–non-EU consumption is eligible; ETS remains proportional.
 - ETS phase-in by **emissions reporting year**, proportional voyage allocation,
   and CH4/N2O from 2026. Eligible renewable CO2 zero-rating does not erase these gases.
 - FuelEU banks retained by the originating ship, with no assumed cash or terminal value.
@@ -117,9 +120,12 @@ shared constraints. The initial grid uses 2% of total sea energy; each leg
 search samples its feasible range in 2% intervals, then refines between points.
 A fuel-level search provides an incumbent; two leg-level
 starts and up to three fleet passes add continuous quantity refinement,
-compliance-balance roots, supply boundaries and transfers between legs.
+FuelEU source-exhaustion boundaries, verified compliance-balance roots, supply
+boundaries and transfers between legs. Each candidate is repriced using the
+new annual FuelEU attribution, including the current-fuel baseline.
 Reports identify the voyage, leg, removed tonnes, added alternative tonnes and
-pilot tonnes. Decisions stay fixed over the horizon. **Lowest evaluated cost
+pilot tonnes. The report and CSV/JSON also expose the annual FuelEU source
+inventory and allocated physical MJ. Decisions stay fixed over the horizon. **Lowest evaluated cost
 is not a guarantee of the globally optimal fleet strategy.**
 
 The case page and reports identify selected alternatives excluded by eligibility,
@@ -142,7 +148,9 @@ Affected reports show a prominent partial-cost warning.
 
 Existing Django cases keep their original fuel library. Use **Add available fuel
 pathways** on the case page to extend it without replacing existing assumptions.
-Saved reports retain their original engine, inputs and results. See the
+Engine 6.6.0 uses ruleset EU-2026-09-10. Saved reports retain their original
+engine, inputs and results; pre-6.6 reports disclose their proportional FuelEU
+attribution and must be rerun to use the new method. See the
 [LNG/RFNBO setup guide](docs/ALTERNATIVE_FUELS.md) for the new inputs.
 
 This is a planning product, not a verifier, compliance filing service or fuel

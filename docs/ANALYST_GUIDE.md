@@ -2,7 +2,7 @@
 
 ## Analyst operating guide
 
-Review draft · Desktop application · Engine 6.5.2 · 9 September 2026
+Review draft · Desktop application · Engine 6.6.0 · 10 September 2026
 
 This guide explains how to build, check and interpret a fleet planning case in the FuelEU Maritime and EU ETS application. It is intended for analysts preparing budget comparisons and management recommendations. It describes the implemented model and its input requirements; it does not certify a fuel, approve a pool or replace a verifier's assessment.
 
@@ -107,7 +107,7 @@ This is an annual EUR amount applied equally to every strategy, such as common v
 
 ### 3.12 Voyage-scope confirmation and scope notes
 
-Confirm scope only after reviewing the actual routes and applicability for both regimes. The app uses the same ordinary-EU category weights for FuelEU and ETS: 100% for intra-EU sea and EU berth, 50% for EU/non-EU sea and 0% for outside-scope sea and non-EU berth. The confirmation records your review; it does not investigate port calls or resolve exceptions automatically.
+Confirm scope only after reviewing the actual routes and applicability for both regimes. The app uses ordinary-EU category weights to determine ETS scope and the FuelEU covered energy total: 100% for intra-EU sea and EU berth, 50% for EU/non-EU sea and 0% for outside-scope sea and non-EU berth. FuelEU then attributes eligible annual energy in lowest-WtW order. The confirmation records your review; it does not investigate port calls or resolve exceptions automatically.
 
 Use Scope and planning notes for the source of the annual consumption allocation, route assumptions, excluded activity and any qualifications. EEA timing differences, special ports, transhipment exclusions and derogations require separate assessment. The legal regimes have different boundaries; a convenient consumption category is not proof of applicability.
 
@@ -136,7 +136,7 @@ Use a consistent naming convention outside the app, for example “Voyage 1 = an
 ### 4.3 Voyage or berth category
 
 - Intra-EU sea voyage: enter all fuel consumed on the relevant sea activity; the model gives it 100% regulatory scope.
-- EU/non-EU sea voyage: enter the full physical tonnes, not half. The app applies the 50% regulatory weight itself.
+- EU/non-EU sea voyage: enter the full physical tonnes, not half. The app applies 50% to ETS scope and the FuelEU covered energy total, while the full eligible fuel energy is available for prioritized FuelEU attribution.
 - Other sea voyage: physical fuel is purchased and counted in the vessel's sea-service demand, but its modelled regulatory scope is zero.
 - EU berth: enter eligible EU port consumption separately from sea fuel. Shore power can replace the eligible share of these rows.
 - Non-EU berth: fuel cost remains included, but the model applies zero regulatory scope and does not replace it with OPS.
@@ -329,11 +329,11 @@ Policy names describe permissions. The large recommendation names what the evalu
 
 The app ranks the present cost of the evaluated strategies. Savings are measured against the current-fuel/ship-settlement reference, not necessarily against last year's invoice or your existing external pool. Undiscounted total is the sum of nominal modelled costs over the horizon. In a one-year case the present and undiscounted totals coincide.
 
-“Lowest evaluated” is deliberate. The search starts with a fuel-level incumbent, then varies voyage/fuel/leg allocations using sampled ranges, continuous refinement, compliance candidates and supply boundaries. It also transfers selected energy between legs. The bounded search does not guarantee the global mathematical minimum across all fleet allocations, technologies or voyage schedules.
+“Lowest evaluated” is deliberate. The search starts with a fuel-level incumbent, then varies voyage/fuel/leg allocations using sampled ranges, continuous refinement, FuelEU source-exhaustion boundaries, verified compliance candidates and supply boundaries. It also transfers selected energy between legs. The bounded search does not guarantee the global mathematical minimum across all fleet allocations, technologies or voyage schedules.
 
 ### 8.4 Strategy remarks and operating choices
 
-Read the selected vessel, voyage and category together. A remark such as “Voyage 1 · Intra-EU sea: replace 21.876 t/year of MGO with 21.230 t/year of HVO” describes an annual same-leg substitution. It does not instruct you to spread the replacement proportionally across the vessel's other legs. The quantities repeat for each reporting year.
+Read the selected vessel, voyage and category together. A remark such as “Voyage 1 · Intra-EU sea: replace 21.739 t/year of MGO with 21.096 t/year of HVO” describes an annual same-leg substitution. It does not instruct you to spread the replacement proportionally across the vessel's other legs. The quantities repeat for each reporting year.
 
 The operating-choice section also shows retained current fuels, total alternative tonnes, service replaced, OPS status and any pilot requirement. Summary tonnes are rounded for readability; use the JSON audit's unrounded leg quantities when reproducing a calculation or sizing a precise compliance-closing substitution. Re-evaluate any practical purchase rounding rather than assuming it preserves the exact balance.
 
@@ -351,7 +351,13 @@ Attained intensity is the modelled gCO2e/MJ after fuel and energy treatment; tar
 
 Reconcile the sequence, not just the raw balance: a ship can start with a negative annual balance and end without a penalty because its own bank or a feasible pool covers it. Conversely, a fleet-level surplus does not imply every ship is settled in a policy that prohibits pooling.
 
-### 8.7 Fuel pathway, methane and RFNBO ledger
+### 8.7 FuelEU allocation and fuel pathway ledgers
+
+Open “FuelEU annual prioritized energy allocation” to inspect each ship’s covered energy, eligible source energy and allocated MJ. The app fills annual covered energy from lowest to highest WtW, including conventional fuels and eligible alternatives. A fuel’s full EU/non-EU sea consumption can be attributed, while only half of that leg’s total energy determines the covered amount. Attribution can span the ship’s eligible voyages and EU berth use within the same reporting year.
+
+For example, 100 MJ on EU/non-EU voyages gives 50 MJ covered. If the eligible inventory is 20 MJ alternative at WtW 20, 15 MJ conventional A at 85, 25 MJ B at 90 and 40 MJ C at 95, attribution is 20 MJ alternative, 15 MJ A and 15 MJ B. C receives no attribution. Physical consumption and purchase costs still include all 100 MJ; ETS still applies its own proportional scope.
+
+This is an elected FuelEU accounting method, separate from the cost-based “replace first” comparison and physical replacement instructions. It applies to current-fuel baselines too. RFNBO reward is applied after physical attribution. Outside-scope sea and non-EU berth cannot supply the inventory in this model; MRV-reported FuelEU-exempt activity needs separate assessment. Historical reports keep their saved proportional results; run a new comparison for the new method.
 
 Use this section to inspect current fuel tonnes by voyage/category, berth fuel, alternative tonnes, separate MGO pilot, methane-slip assumptions, scoped CH4 and RFNBO energy measures. Physical energy and rewarded energy are different quantities. The possible RFNBO shortfall is an energy measure, not a tonne-of-CO2 balance.
 
@@ -371,7 +377,7 @@ Create a fictional 2026-only cargo-vessel case. Set EUA price to EUR 85/tCO2e, e
 
 Enter Voyage 1 HSFO: 200 tonnes intra-EU and 800 tonnes EU/non-EU; MGO: 80 tonnes intra-EU, 20 tonnes EU/non-EU and 50 tonnes EU berth; VLSFO: 10 tonnes intra-EU and 50 tonnes EU/non-EU. Retain the library's illustrative prices: HSFO 470, VLSFO 575, MGO 720 and HVO 1,550 EUR/tonne. For this exercise only, record assumed HVO evidence and enable both renewable eligibility and ETS CO2 zero-rating. Retain its illustrative WtW of 20 and LCV of 44,000 MJ/tonne.
 
-With these inputs, the checked regression result replaces approximately 21.875943 tonnes of MGO with 21.229608 tonnes of HVO on Voyage 1's intra-EU sea category. Total annual cost is approximately EUR 833,155.12, compared with EUR 834,499.72 for the current-fuel external-pooling option. The replacement supplies the removed energy on that same leg and closes the modelled GHG deficit without pooling. These figures are reproducibility examples, not forecasts for a real vessel.
+With these inputs, the checked regression result replaces approximately 21.738698 tonnes of MGO with 21.096418 tonnes of HVO on Voyage 1's intra-EU sea category. Total annual cost is approximately EUR 833,084.91, compared with EUR 834,421.07 for the current-fuel external-pooling option. The current-fuel baseline already benefits from conventional-fuel prioritization. The replacement supplies the removed energy on that same leg and closes the modelled GHG deficit without pooling. These figures are reproducibility examples, not forecasts for a real vessel.
 
 ### 9.2 Two vessels: test scarce supply, a bank and OPS
 
@@ -391,7 +397,7 @@ For methanol, ammonia or hydrogen, start with a separate duplicate and complete 
 
 ### 10.1 Download CSV
 
-The CSV includes the evaluated strategies and their ship/year cost and compliance records, plus explicit company other-cost rows. Some fields contain JSON describing detailed fuel inventories and voyage-leg replacements. It is an audit-friendly export, not a flat bunkering instruction. Filter by strategy and reporting year before summing, and avoid double-counting different policy evaluations as if they were additional vessels.
+The CSV includes the evaluated strategies and their ship/year cost and compliance records, plus explicit company other-cost rows. Some fields contain JSON describing detailed fuel inventories, voyage-leg replacements and annual FuelEU attribution. The allocation ledger records eligible and allocated physical MJ by fuel and consumer. It is an audit-friendly export, not a flat bunkering instruction. Filter by strategy and reporting year before summing, and avoid double-counting different policy evaluations as if they were additional vessels.
 
 ### 10.2 Audit file
 
@@ -418,7 +424,7 @@ First inspect the exclusion notices: eligibility, required factors, compatibilit
 
 ### 11.2 Why is one leg preferred?
 
-A fully covered leg can deliver more modelled compliance benefit per tonne purchased than a half-covered or outside-scope leg. Fuel price, displaced LCV/intensity, system efficiency, vessel limits and fleet settlement also influence the choice. The optimizer retains each replacement on its original leg; it does not move renewable fuel onto a covered part of a voyage merely for accounting credit.
+An intra-EU leg can offer larger ETS savings, while eligible alternative energy on an EU/non-EU leg can receive full FuelEU attribution within the annual covered-energy limit. Outside-scope fuel cannot enter that inventory. Fuel price, displaced LCV/intensity, system efficiency, vessel limits and fleet settlement also influence the choice. Physical replacement stays on the chosen leg; FuelEU accounting separately prioritizes the eligible annual inventory.
 
 ### 11.3 Why does a higher alternative share not always improve the recommendation?
 
@@ -432,7 +438,9 @@ Current activity and selected quantities repeat annually. Some multi-year rules 
 
 ## 12. References and version control
 
-The following sources were consulted for the regulatory context. The guide's descriptions of field behavior, search limits, accounting sequence and exports are based on the application's engine 6.5.2, forms and release tests. Regulatory changes after the recorded ruleset date require review before use; the guide does not assert a new legal ruleset.
+- Commission allocation guidance: https://transport.ec.europa.eu/document/download/d4426ccc-ef46-4292-8b6d-5bf7a620f5ba_en?filename=fueleu_guidance_document_for_shipping_companies.pdf#page=51 (section 4.4, pages 51–52).
+
+The following sources were consulted for the regulatory context. The guide's descriptions of field behavior, search limits, accounting sequence and exports are based on the application's engine 6.6.0, forms and release tests. Regulatory changes after the recorded ruleset date require review before use; the guide does not assert a new legal ruleset.
 
 - European Commission, Maritime ETS general guidance, especially section 5.2.2 on sustainable-fuel CO2 zero-rating: https://climate.ec.europa.eu/document/download/31875b4f-39b9-4cde-a4e2-fbb8f65ee703_en?filename=policy_transport_shipping_gd1_maritime_en.pdf
 - European Commission, Maritime ETS questions and answers, including reporting-year coverage and treatment of alternative fuels: https://climate.ec.europa.eu/areas-action/transport-decarbonisation/reducing-emissions-shipping-sector/faq-maritime-transport-eu-emissions-trading-system-ets_en

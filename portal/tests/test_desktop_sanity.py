@@ -110,6 +110,9 @@ class FleetSanityTests(SimpleTestCase):
                             if fuel.supply_t is not None:
                                 self.assertLessEqual(fsum(r["fuel_tonnes"][fuel.code] for r in rows), fuel.supply_t + 1e-7)
                         for vessel, row in zip(data.vessels, rows):
+                            attribution = row["fueleu_allocation"]
+                            self.assertAlmostEqual(fsum(s["allocated_energy_mj"] for s in attribution), row["energy_mj"], places=6)
+                            self.assertTrue(all(0 <= s["allocated_energy_mj"] <= s["available_energy_mj"] for s in attribution))
                             self.assertLessEqual(row["blend"], vessel.max_blend + 1e-10)
                             self.assertAlmostEqual(row["total_cost"], fsum(row[k] for k in (
                                 "fuel_cost", "ets_cost", "electricity_cost", "pool_cost", "penalty_cost", "implementation_cost")), places=6)
@@ -178,12 +181,18 @@ class DesktopReleaseTests(StaticLiveServerTestCase):
                         expect(page.locator(".strategy-option[aria-current='true']")).to_have_count(1)
                         expect(page.locator("[data-strategy-explanation]")).to_be_visible()
                     page.goto(report_url)
+                    allocation_summary = page.get_by_text("FuelEU annual prioritized energy allocation", exact=True)
+                    allocation_summary.click()
+                    expect(page.get_by_role("columnheader", name="Allocated FuelEU MJ").first).to_be_visible()
+                    if index == 0:
+                        allocation_summary.locator("..").screenshot(path=str(artifact_dir / "prioritized-allocation.png"))
                     for label, extension in (("Download CSV", "csv"), ("Audit file", "json")):
                         with page.expect_download() as download:
                             page.get_by_role("link", name=label).click()
                         saved = artifact_dir / f"case-{index+1}.{extension}"
                         download.value.save_as(str(saved))
                         self.assertIn("leg_replacements", saved.read_text(encoding="utf-8-sig"))
+                        self.assertIn("annual_lowest_wtw", saved.read_text(encoding="utf-8-sig"))
                     audit = json.loads((artifact_dir / f"case-{index+1}.json").read_text(encoding="utf-8"))
                     audits.append((scenario.pk, audit))
                     best = next(s for s in audit["results"]["strategies"] if s["key"] == audit["results"]["best_key"])

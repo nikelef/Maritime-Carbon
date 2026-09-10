@@ -5,6 +5,7 @@ Prices are assumptions, and pools are conditional commercial arrangements.
 """
 from dataclasses import replace
 from math import fsum, isfinite
+from .allocation import prioritize_energy
 from .rules import target, ets_phase, penalty, borrowing_limit, rfnbo_reward, LNG_CONSUMERS, GWP_CH4, GWP_N2O, SOURCES, CHECKED_ON
 
 
@@ -119,7 +120,9 @@ def profile(vessel, scenario, year, blend=0, ops=False, replacements=None, leg_r
     reference_energy = fsum(entry["sea_t"] * fuels[entry["fuel"]].lcv for entry in entries) + legacy_pilot * berth.lcv
     replaced_energy = reference_energy * actual_blend
     scoped_replaced_energy = fsum(entry["sea_t"] * (leg_shares.get(entry["allocation_key"], 0) if legs is not None else shares.get(entry["fuel"], 0)) * fuels[entry["fuel"]].lcv * (entry["intra_share"] + .5 * entry["extra_share"]) for entry in entries) + legacy_pilot * shares.get("MGO", 0) * berth.lcv * sea_scope
+    eligible_replaced_energy = fsum(entry["sea_t"] * (leg_shares.get(entry["allocation_key"], 0) if legs is not None else shares.get(entry["fuel"], 0)) * fuels[entry["fuel"]].lcv * (entry["intra_share"] + entry["extra_share"]) for entry in entries) + legacy_pilot * shares.get("MGO", 0) * berth.lcv * (vessel.intra_share + vessel.extra_share)
     alternative_scope = scoped_replaced_energy / replaced_energy if replaced_energy else 0
+    alternative_eligible = eligible_replaced_energy / replaced_energy if replaced_energy else 0
     baseline_fuels = [dict(entry, sea_t=entry["sea_t"] * (1 - (leg_shares.get(entry["allocation_key"], 0) if legs is not None else shares.get(entry["fuel"], 0)))) for entry in entries]
     fossil_t = fsum(entry["sea_t"] for entry in baseline_fuels)
     alternative_system_energy = replaced_energy * vessel.alternative_energy_ratio
@@ -148,9 +151,36 @@ def profile(vessel, scenario, year, blend=0, ops=False, replacements=None, leg_r
     parts = [(f, tonnes, consumer, scope) for f, tonnes, consumer, scope in sea_parts if tonnes > 0]
     scoped_fuel_energy = fsum(tonnes * f.lcv * scope for f, tonnes, _, scope in parts)
     energy = (scoped_fuel_energy + electricity_mwh * 3600) if fueleu_applies else 0
-    numerator = fsum(tonnes * f.lcv * fuel_intensity(f, consumer) * scope for f, tonnes, consumer, scope in parts) if fueleu_applies else 0
-    rfnbo_energy = fsum(tonnes * f.lcv * scope for f, tonnes, _, scope in parts if f.rfnbo and f.eligible) if fueleu_applies else 0
-    reward_eligible_energy = fsum(tonnes * f.lcv * scope for f, tonnes, _, scope in parts if f.rfnbo and f.eligible and f.reward_enabled) if fueleu_applies else 0
+    # Full eligible consumption is available for annual FuelEU attribution.
+    # The physical inventory, Article 2 energy total and ETS scope stay intact.
+    eligible_parts = [(fuels[e["fuel"]], e["sea_t"], vessel.fuel_consumer,
+                       e["intra_share"] + e["extra_share"]) for e in baseline_fuels]
+    eligible_parts += [(alt, alt_t, vessel.alternative_consumer, alternative_eligible),
+                       (berth, remaining_pilot_t, "", vessel.intra_share + vessel.extra_share),
+                       (berth, alternative_pilot_t, "", alternative_eligible)]
+    eligible_parts += [(fuels[e["fuel"]], e["eu_berth_t"], vessel.berth_consumer, 1)
+                       for e in berth_fuels]
+    sources = {}
+    if fueleu_applies:
+        for f, tonnes, consumer, eligible_share in eligible_parts:
+            consumer = consumer if f.pathway == "methane" else ""
+            if not f.available_for_use or (f.pathway == "methane" and not consumer):
+                continue  # An unavailable, unused alternative is not a source.
+            key = (f.code, consumer)
+            if key not in sources:
+                sources[key] = dict(fuel=f.code, consumer=consumer, source_type="fuel", wtw_g=fuel_intensity(f, consumer),
+                                    consumer_label=LNG_CONSUMERS[consumer][0] if consumer else "",
+                                    available_energy_mj=0.0, rfnbo=f.rfnbo and f.eligible,
+                                    reward_enabled=f.rfnbo and f.eligible and f.reward_enabled)
+            sources[key]["available_energy_mj"] += tonnes * f.lcv * eligible_share
+        sources[("OPS", "electricity")] = dict(fuel="OPS", consumer="", source_type="electricity", wtw_g=0.0,
+                                     consumer_label="",
+                                     available_energy_mj=electricity_mwh * 3600,
+                                     rfnbo=False, reward_enabled=False)
+    allocation = prioritize_energy(sources.values(), energy)
+    numerator = fsum(s["allocated_energy_mj"] * s["wtw_g"] for s in allocation)
+    rfnbo_energy = fsum(s["allocated_energy_mj"] for s in allocation if s["rfnbo"])
+    reward_eligible_energy = fsum(s["allocated_energy_mj"] for s in allocation if s["reward_enabled"])
     rewarded_energy = energy + (rfnbo_reward(year) - 1) * reward_eligible_energy
     # Annex I: electricity from shore has zero emissions in this regulatory intensity.
     attained = numerator / rewarded_energy if rewarded_energy else 0
@@ -158,7 +188,7 @@ def profile(vessel, scenario, year, blend=0, ops=False, replacements=None, leg_r
     balance = (target(year) - attained) * energy / 1e6
     ets = fsum(tonnes * emissions_factor(f, year, consumer) * scope for f, tonnes, consumer, scope in parts) * ets_phase(year) if ets_applies else 0
     ch4_t = fsum(tonnes * physical_factors(f, consumer)[1] * scope for f, tonnes, consumer, scope in parts)
-    fuel_energy = scoped_fuel_energy if fueleu_applies else 0
+    fuel_energy = fsum(s["allocated_energy_mj"] for s in allocation if s["source_type"] == "fuel")
     rfnbo_deficit = max(0, .02 * fuel_energy - rfnbo_energy) if year >= 2034 else 0
     rfnbo_active = year >= 2034 and scenario.rfnbo_subtarget == "assume_active"
     if rfnbo_active and scenario.rfnbo_penalty_pd is None:
@@ -170,6 +200,7 @@ def profile(vessel, scenario, year, blend=0, ops=False, replacements=None, leg_r
     electricity_cost = electricity_mwh * scenario.electricity_price * fuel_multiplier
     ets_cost = ets * scenario.eua_price * (1 + scenario.eua_escalation) ** delta
     row = {"vessel": vessel.name, "year": year, "target_g": target(year), "attained_g": attained,
+            "fueleu_allocation_method": "annual_lowest_wtw", "fueleu_allocation": allocation,
             "energy_mj": energy, "balance_t": balance, "ets_t": ets, "fuel_cost": fuel_cost,
             "ets_cost": ets_cost, "electricity_cost": electricity_cost, "electricity_mwh": electricity_mwh,
             "alternative_t": alt_t, "fossil_t": fossil_t, "baseline_t": fossil_t, "berth_t": berth_t, "pilot_t": pilot_t, "berth_fuels": berth_fuels, "non_eu_berth_t": non_eu_berth_t,
@@ -547,8 +578,8 @@ def compare(scenario):
     strategies.sort(key=lambda s: (s["npv"], s["key"] != "baseline", s["use_pool"], s["key"]))
     coverage_limits = []
     warnings = ["Prices and consumption are planning assumptions; prices are not a live market feed.",
-                "Lowest evaluated cost selects replacement by voyage, current fuel and sea-leg category. The previous fuel allocation search supplies an incumbent; a bounded continuous coordinate search adds leg allocation, energy transfers, compliance roots and shared supply boundaries. Two starts and up to three fleet passes are used. Decisions are fixed over the horizon; a global optimum is not guaranteed.",
-                "Annual fuel shares use proportional voyage allocation. Confirm EU/EEA applicability, exclusions and transhipment rules for both regimes before relying on results.",
+                "Lowest evaluated cost selects replacement by voyage, current fuel and sea-leg category. The previous fuel allocation search supplies an incumbent; a bounded continuous coordinate search adds leg allocation, energy transfers, FuelEU source-exhaustion boundaries, verified compliance roots and shared supply boundaries. Two starts and up to three fleet passes are used. Decisions are fixed over the horizon; a global optimum is not guaranteed.",
+                "FuelEU elects annual lowest-WtW-first allocation per ship: full energy from intra-EU and EU–non-EU sea consumption and EU berth is available to fill the Article 2 covered energy total. Conventional fuels and eligible alternatives are prioritized together. ETS retains proportional voyage allocation. Outside-scope sea and non-EU berth are excluded from the FuelEU source inventory; MRV-reported FuelEU-exempt activity needs separate assessment.",
                 "Unused banked surplus has no cash income or terminal value. No surplus sale or borrowing is assumed."]
     if not scenario.pool_enabled:
         warnings.append("External pooling is disabled. Only a self-sufficient fleet pool can offset balances across ships.")
@@ -577,7 +608,7 @@ def compare(scenario):
         warnings.append("RFNBOs require certified production/lifecycle evidence, including applicable RED and delegated-act criteria. Where enabled for the fuel, the elective reward is 2 in the intensity denominator through 2033 and 1 thereafter; physical compliance-balance energy is not doubled. The reward setting is fixed, not optimized. ETS CO2 zero-rating is a separate user assertion and does not remove CH4/N2O.")
     if any(f.pathway == "methane" for f in scenario.fuels if any(f.code in {entry["fuel"] for entry in v.consumption_entries()} | {v.alternative} for v in scenario.vessels)):
         warnings.append("LNG, bio-LNG and e-LNG use the selected engine's Annex II default methane slip, with the combusted fraction reduced accordingly. This annual model uses separate current sea, berth and alternative methane consumer classes per vessel; mixed engines, load-dependent or measured slip, additional venting and boil-off require a separate assessment.")
-    warnings.append("One alternative system is evaluated per vessel per case. The overall replacement limit applies to total baseline sea service demand, not separately to each fuel. Each voyage/fuel/sea-leg combination can have a different replacement fraction. The alternative fuel and its MGO pilot supply the replacement energy on that same leg and inherit its coverage. Actual alternative energy uses the entered system-energy ratio and MGO pilot fraction. Current pilot in the consumption table, and legacy separate MGO pilot, are included once in their current-fuel demand. Berth fuel is unchanged by sea-fuel switching; only eligible EU berth fuel is replaced by shore power. Enter conversion, downtime and incremental annual costs; compare separate cases for other technologies.")
+    warnings.append("One alternative system is evaluated per vessel per case. The overall replacement limit applies to total baseline sea service demand, not separately to each fuel. Each voyage/fuel/sea-leg combination can have a different replacement fraction. The alternative fuel and its MGO pilot supply the replacement energy on that same leg and retain its physical consumption and ETS coverage. FuelEU attributes energy separately across the eligible annual inventory. Actual alternative energy uses the entered system-energy ratio and MGO pilot fraction. Current pilot in the consumption table, and legacy separate MGO pilot, are included once in their current-fuel demand. Berth fuel is unchanged by sea-fuel switching; only eligible EU berth fuel is replaced by shore power. Enter conversion, downtime and incremental annual costs; compare separate cases for other technologies.")
     warnings.append("First-step comparisons cover all current source fuels except the alternative itself, using equal original sea-energy steps and full-horizon fleet present cost with other ships and shore power held at the selected strategy. The first-step fuel comparison uses proportional leg allocation for illustration; the selected leg quantities determine the final recommendation. The final quantities are optimized together; priority is not a year-by-year switching schedule. Ties use fuel code order. Price sensitivities retain the saved voyage-leg allocations.")
     warnings.append("Administrative, hedging, financing, charter-party allocation and unmodelled operating costs must be added to the annual other-cost assumption where relevant.")
     sensitivities = []
@@ -591,6 +622,6 @@ def compare(scenario):
                 values.append((result["npv"], strategy["name"]))
         winner = min(values)
         sensitivities.append({"assumption": label, "npv": winner[0], "winner": winner[1]})
-    return {"search_grid_percent": 100 / GRID_INTERVALS, "strategies": strategies, "best_key": strategies[0]["key"], "baseline_npv": baseline["npv"], "warnings": warnings, "sensitivities": sensitivities,
+    return {"fueleu_allocation_method": "annual_lowest_wtw", "search_grid_percent": 100 / GRID_INTERVALS, "strategies": strategies, "best_key": strategies[0]["key"], "baseline_npv": baseline["npv"], "warnings": warnings, "sensitivities": sensitivities,
             "fuel_choice_notices": fuel_choice_notices(scenario),
             "horizon": f"{scenario.start_year}–{scenario.end_year}", "vessel_count": len(scenario.vessels), "coverage_limits": coverage_limits, "sources": [dict(s) for s in SOURCES], "checked_on": CHECKED_ON}

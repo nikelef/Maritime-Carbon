@@ -1,6 +1,7 @@
 # Regulatory basis and calculation contract
 
-Source review: 2026-09-07. Ruleset: `EU-2026-09-07`. Engine: `6.0.0`.
+Allocation source review: 2026-09-10. Ruleset: `EU-2026-09-10`. Engine: `6.6.0`.
+Earlier dated sections below record the history; the 6.6 allocation contract supersedes their proportional FuelEU attribution.
 This is a bounded planning model, not a statement of universal legal applicability.
 
 ## Sources
@@ -20,11 +21,13 @@ Mass is metric tonnes; energy is MJ (electricity is entered/priced in MWh);
 intensity is gCO2e/MJ; compliance balances and ETS emissions are tCO2e; money is EUR.
 The 1,000,000 conversion is grams per tonne. There are 3,600 MJ per MWh.
 
-Ship annual intensity is a scoped energy-weighted average of entered complete
+Ship annual intensity is an allocated energy-weighted average of entered complete
 oil/biofuel intensities or derived fuel/consumer intensities and regulatory
 zero-intensity shore electricity, with the elective RFNBO denominator reward.
 Baseline fuel quantities include all modelled sea consumption. Proportional
-scope affects regulatory quantities, never the cost of purchasing all that fuel.
+scope determines ETS emissions and the FuelEU Article 2 energy total, never the
+cost of purchasing all that fuel. FuelEU source attribution then follows the
+annual prioritized allocation contract below.
 
 FuelEU applies above 5,000 GT for supported commercial cargo/passenger types.
 ETS includes the 5,000 GT boundary. The application deliberately distinguishes
@@ -334,3 +337,50 @@ Strategies remain separate if their operating decisions, ship ledgers, annual
 cost components, total cost or NPV differ. Only identical outcomes are grouped;
 equality is checked before display rounding. Policy names alone do not make outcomes different. Nonempty first-step
 comparisons and priority details displayed in section 03 do keep them separate.
+
+
+### Annual prioritized FuelEU allocation (engine 6.6)
+
+Basis: [Commission guidance, 8 October 2025, section 4.4, pages 51–52](https://transport.ec.europa.eu/document/download/d4426ccc-ef46-4292-8b6d-5bf7a620f5ba_en?filename=fueleu_guidance_document_for_shipping_companies.pdf#page=51).
+The guidance permits annual ship-specific attribution across MRV-reported
+consumption, including prioritization among conventional fuels. This is an
+elected method, not a compulsory allocation order in the legislative text.
+
+Implementation contract:
+
+- Determine physical consumption after sea substitution, pilot and OPS.
+- Calculate covered energy using 100% intra-EU sea/EU berth, 50% EU–non-EU
+  sea and 0% outside-scope sea/non-EU berth, plus shore electricity.
+- Build a separate annual source inventory using full intra-EU and EU–non-EU
+  sea consumption and EU berth consumption. Include alternative and pilot fuel
+  only to the extent physically consumed in those eligible categories.
+- Group by fuel and consumer; rank by entered/derived WtW gCO2e/MJ, lowest first.
+  Break ties by fuel code and consumer. Shore electricity has zero intensity.
+  No hard-coded renewable-first classification overrides the actual intensity.
+- Fill the covered physical energy total, using a partial final source where
+  needed. All source energies remain bounded by their eligible consumption.
+- Apply any elected RFNBO reward to allocated RFNBO MJ afterwards. Physical
+  compliance energy is not doubled. RFNBO fuel-energy share excludes allocated
+  electricity. Source order follows physical WtW; the RFNBO reward is not itself
+  an allocation-order optimization variable.
+- Compute ETS separately from actual mass and proportional voyage scope.
+  Purchases and annual supply caps retain all consumption, including excluded use.
+
+Every baseline, candidate, pool calculation and saved-decision sensitivity uses
+this accounting. Source-capacity breakpoints partition the continuous leg search;
+compliance roots are evaluated within those partitions and verified against the
+actual profiles, including nonlinear RFNBO cases. The bounded search retains its
+fuel-level incumbent, two starts and fleet passes; it does not prove global
+optimality or vary the elected attribution method.
+
+Reports expose eligible and allocated physical MJ by source/consumer/year.
+CSV exports add FuelEU_allocation_method and FuelEU_annual_allocation_json;
+JSON includes the same row ledger. Engine/ruleset versions identify the change.
+Historical results are displayed without recalculation and explicitly identified
+as proportional; users must create a new run to apply prioritized attribution.
+
+The current category model excludes outside-scope sea and non-EU berth from the
+source inventory. It cannot distinguish MRV-reported FuelEU-exempt activity from
+wholly ineligible activity. Such exempt activity, intermediate port stops and
+ship-specific EEA/exemption cases still require separate assessment; they must
+not be represented as freely eligible outside-scope fuel.

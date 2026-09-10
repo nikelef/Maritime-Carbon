@@ -70,8 +70,14 @@ class LNGReferenceTests(SimpleTestCase):
         data.vessels[0].alternative_pilot_share = .03
         full = profile(data.vessels[0], data, 2026, 1)
         half = profile(replace(data.vessels[0], intra_share=0, extra_share=1), data, 2026, 1)
-        for field in ("energy_mj", "ets_t", "balance_t", "scoped_ch4_t"):
+        for field in ("energy_mj", "ets_t", "scoped_ch4_t"):
             self.assertAlmostEqual(half[field], full[field] / 2)
+        # FuelEU fills the covered half with lower-WtW LNG, excluding MGO
+        # pilot from attribution while retaining it in physical/ETS consumption.
+        lng = next(f for f in data.fuels if f.code == "LNG")
+        expected = fuel_intensity(lng, "diesel_slow")
+        self.assertAlmostEqual(half["attained_g"], expected)
+        self.assertAlmostEqual(half["balance_t"], (target(2026)-expected)*half["energy_mj"]/1e6)
         self.assertEqual(full["fuel_cost"], half["fuel_cost"])
 
     def test_bio_lng_and_e_lng_zero_only_eligible_co2_not_slip(self):

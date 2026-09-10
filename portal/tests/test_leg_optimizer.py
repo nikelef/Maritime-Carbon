@@ -8,6 +8,7 @@ from django.template.loader import render_to_string
 
 from portal.engine.calculator import compare, leg_demands, profile, saved_decision, simulate, optimize, share_grid, options
 from portal.engine.leg_optimizer import leg_decision
+from portal.engine.rules import target
 from portal.tests.test_fuel_eligibility import high_carbon_price_case
 from portal.views import report_context
 
@@ -34,9 +35,13 @@ class LegOptimizerTests(SimpleTestCase):
         self.assertEqual(len(used), 1)
         leg = used[0]
         self.assertEqual((leg["voyage"], leg["fuel"], leg["leg"]), (1, "MGO", "intra_t"))
-        self.assertAlmostEqual(leg["replaced_t"], 21.875942678666977, places=6)
-        self.assertAlmostEqual(leg["alternative_t"], 21.229608008615454, places=6)
-        self.assertAlmostEqual(best["npv"], 833155.1155676048, places=5)
+        oil_g = 13.5 + (3.114+.00005*28+.00018*265)*1e6/40500
+        mgo_g = 14.4 + (3.206+.00005*28+.00018*265)*1e6/42700
+        energy = 635*40500 + 140*42700
+        baseline_ghg = 150*42700*mgo_g + (energy-150*42700)*oil_g
+        expected_t = (baseline_ghg-target(2026)*energy)/(42700*(mgo_g-20))
+        self.assertAlmostEqual(leg["replaced_t"], expected_t, places=6)
+        self.assertAlmostEqual(leg["alternative_t"], expected_t*42700/44000, places=6)
         self.assertLess(output["blend"], .05)
         self.assertEqual(best["pool_cost"], 0)
         self.assertEqual(best["penalty_cost"], 0)
@@ -52,8 +57,8 @@ class LegOptimizerTests(SimpleTestCase):
                               engine_version="6.5.0", ruleset_version="test", scenario_revision=1)
         context = report_context(run, RequestFactory().get("/demo/")); context["demo"] = True
         html = render_to_string("portal/report.html", context)
-        self.assertIn("Voyage 1 · Intra-EU sea: replace 21.876", html)
-        self.assertIn("21.230 t/year of HVO", html)
+        self.assertIn(f"Voyage 1 · Intra-EU sea: replace {expected_t:.3f}", html)
+        self.assertIn(f"{expected_t*42700/44000:.3f} t/year of HVO", html)
         self.assertIn("data-leg-remarks", html)
         self.assertEqual(result["search_grid_percent"], 2)
         self.assertIn("Initial grid: 2% of total sea energy; leg-search grid: 2%", html)

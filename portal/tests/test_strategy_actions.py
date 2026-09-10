@@ -72,8 +72,10 @@ class StrategyActionTests(SimpleTestCase):
         original = compare(data)
         fuel = next(s for s in original["strategies"] if s["key"] == "fuel")
         combined = next(s for s in original["strategies"] if s["key"] == "combined")
-        # Start with genuinely identical section-03 details, then vary one item.
-        combined["decisions"] = deepcopy(fuel["decisions"])
+        # Build an exactly identical outcome before varying one field. Separate
+        # continuous searches may differ by floating-point rounding at a root.
+        for field in ("decisions", "annual", "rows", "npv", "total"):
+            combined[field] = deepcopy(fuel[field])
         self.assertTrue(same_strategy_outcome(fuel, combined))
         for difference in ("operating_choice", "leg", "breakdown", "npv", "total", "first_step"):
             with self.subTest(difference=difference):
@@ -163,7 +165,7 @@ class StrategyActionTests(SimpleTestCase):
         self.assertEqual(row["pool_cost"], 0)
         self.assertEqual(row["pool_buy_t"], 0)
         self.assertFalse(row["pool_used"])
-        self.assertAlmostEqual(row["bank_close_t"], 17.096607663157567)
+        self.assertAlmostEqual(row["bank_close_t"], 17.51053482365166)
         self.assertAlmostEqual(fuel["npv"], 812083.053874269)
 
     def test_actual_external_pooling_remains_visible_without_shore_power(self):
@@ -174,7 +176,7 @@ class StrategyActionTests(SimpleTestCase):
         self.assertTrue(actions["pooling_used"])
         self.assertAlmostEqual(result["pool_cost"], actions["external_pool_t"] * 190)
         self.assertEqual(actions["electricity_mwh"], 0)
-        self.assertAlmostEqual(result["npv"], 834499.719564)
+        self.assertAlmostEqual(result["npv"], 834421.0734035062)
 
     def test_zero_price_external_pool_is_identified_by_quantity(self):
         data = shore_power_case()

@@ -1,5 +1,7 @@
 # Maritime Carbon — video review draft
 
+Historical artifact: the recorded figures/screenshots below predate engine 6.6.0 annual prioritized FuelEU allocation. They are retained as the original review record; use the updated analyst guide and PRIORITIZED_ALLOCATION_VERIFICATION.md for the current engine.
+
 The latest version is the [80-second, one-vessel, one-voyage revision](VIDEO_SINGLE_VOYAGE_REVIEW.md), with the owner's revised consumption and timed mouse-over narration. The two-vessel notes below describe the earlier version and its different calculation.
 
 The current review version is an 82-second desktop demonstration with a 30-second

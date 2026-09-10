@@ -1,5 +1,6 @@
 """Bounded continuous voyage-leg search using full fleet and horizon costs."""
 from math import fsum, sqrt
+from .allocation import allocation_breakpoints
 
 from .calculator import (leg_demands, optimize_fuels, profile, simulate,
                          add_replacement_priority, GRID_INTERVALS)
@@ -69,27 +70,55 @@ def optimize_legs(scenario, use_pool):
             return None, None
         low, high = max(0.0, low), min(1.0, high)
         points = {low, high} | {low+(high-low)*i/GRID_INTERVALS for i in range(1, GRID_INTERVALS)}
-        # Exact roots cover a ship's annual deficit and cumulative bank, plus
-        # fleet pooling balance/capacity. These are additional candidates only;
-        # simulate remains the authority for feasibility and final costs.
-        bank_a = bank_b = scenario.vessels[index].opening_bank
-        fleet_a = fleet_b = fsum(v.opening_bank for v in scenario.vessels)
-        def root(x, y):
-            if abs(y-x) > 1e-12:
-                t = -x/(y-x)
-                if low <= t <= high:
-                    points.add(t)
-        for year in range(scenario.start_year, scenario.end_year+1):
-            x = physical(index, year, left)["balance_t"]
-            y = physical(index, year, right)["balance_t"]
-            root(x, y)
-            bank_a += x; bank_b += y
-            root(bank_a, bank_b)
-            other = fsum(physical(j, year, d)["balance_t"] for j, d in enumerate(current) if j != index)
-            root(x+other, y+other)
-            root(x+other+scenario.pool_cap-1e-6, y+other+scenario.pool_cap-1e-6)
-            fleet_a += x+other; fleet_b += y+other
-            root(fleet_a, fleet_b)
+        # FuelEU attribution changes slope whenever a cumulative source capacity
+        # reaches the Article 2 energy total. Whole-line interpolation of the
+        # compliance balance is no longer valid. Split at all such boundaries.
+        kinks = allocation_breakpoints(pa, pb, low, high)
+        points.update(kinks)
+        years = range(scenario.start_year, scenario.end_year+1)
+        other_balances = {year: fsum(physical(j, year, d)["balance_t"]
+                          for j, d in enumerate(current) if j != index) for year in years}
+        residual_cache = {}
+
+        def residuals(t):
+            if t not in residual_cache:
+                bank = scenario.vessels[index].opening_bank
+                fleet = fsum(v.opening_bank for v in scenario.vessels)
+                values = []
+                for year in years:
+                    p = physical(index, year, choice(t))
+                    balance = p["balance_t"]
+                    other = other_balances[year]
+                    bank += balance
+                    fleet += balance + other
+                    values.extend((balance, bank, balance+other,
+                                   balance+other+scenario.pool_cap-1e-6, fleet))
+                    if p["rfnbo_subtarget_active"]:
+                        values.append(p["rfnbo_energy_mj"] - .02*p["fuel_energy_mj"])
+                residual_cache[t] = values
+            return residual_cache[t]
+
+        boundaries = sorted({low, high} | kinks)
+        for start, end in zip(boundaries, boundaries[1:]):
+            for position, (x, y) in enumerate(zip(residuals(start), residuals(end))):
+                if x*y >= 0 or abs(y-x) < 1e-12:
+                    continue
+                t = start - x*(end-start)/(y-x)
+                # With RFNBO reward, balances can be rational, not linear.
+                # Validate interpolation and bisect the actual annual profiles.
+                value = residuals(t)[position]
+                if abs(value) > 1e-9:
+                    lo, hi, flo = start, end, x
+                    for _ in range(40):
+                        if value*flo > 0:
+                            lo, flo = t, value
+                        else:
+                            hi = t
+                        t = (lo+hi)/2
+                        value = residuals(t)[position]
+                        if abs(value) < 1e-10:
+                            break
+                points.add(t)
         samples = sorted(points)
         best_choice, best_value, best_t = None, None, low
         def evaluate(t):

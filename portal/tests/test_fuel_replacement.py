@@ -232,6 +232,27 @@ class FuelReplacementReportTests(TestCase):
         replacements = {item["fuel"]: item for item in json.loads(row["sea_fuel_replacements_json"])}
         self.assertEqual(replacements["MGO"]["replaced_t"], 100)
         self.assertEqual(replacements["HSFO"]["replaced_t"], 0)
+        self.assertEqual(row["FuelEU_allocation_method"], "annual_lowest_wtw")
+        self.assertEqual(json.loads(row["FuelEU_annual_allocation_json"]), strategy["rows"][0]["fueleu_allocation"])
+        self.assertContains(response, "FuelEU annual prioritized energy allocation")
+
+    def test_historical_proportional_report_is_not_recalculated(self):
+        results = json.loads(json.dumps(self.run.results))
+        results.pop("fueleu_allocation_method", None)
+        for strategy in results["strategies"]:
+            for row in strategy["rows"]:
+                row.pop("fueleu_allocation_method", None)
+                row.pop("fueleu_allocation", None)
+        legacy = AnalysisRun.objects.create(
+            company=self.run.company, scenario=self.scenario, scenario_name=self.run.scenario_name,
+            scenario_revision=1, inputs=self.run.inputs, results=results,
+            input_digest=self.run.input_digest, engine_version="6.5.2", ruleset_version="EU-2026-09-07",
+            created_by=self.run.created_by)
+        response = self.client.get(reverse("report", args=[legacy.pk]))
+        self.assertContains(response, "Historical report: FuelEU retains the proportional attribution")
+        self.assertNotContains(response, "<summary>FuelEU annual prioritized energy allocation</summary>")
+        legacy.refresh_from_db()
+        self.assertEqual(legacy.results, results)
 
     def test_saved_legacy_result_discloses_original_uniform_allocation(self):
         for strategy in self.run.results["strategies"]:

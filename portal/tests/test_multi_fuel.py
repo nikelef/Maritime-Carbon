@@ -35,7 +35,11 @@ class MultiFuelEngineTests(SimpleTestCase):
         residual_ttw = 3.114 + .00005 * 28 + .00018 * 265
         mgo_ttw = 3.206 + .00005 * 28 + .00018 * 265
         expected_ets = scoped_residual * residual_ttw + scoped_mgo * mgo_ttw
-        expected_ghg = scoped_residual * (40500 * 13.5 + residual_ttw * 1e6) + scoped_mgo * (42700 * 14.4 + mgo_ttw * 1e6)
+        # FuelEU attributes all eligible MGO first, including the full eligible
+        # pilot share; remaining energy uses residual oil. ETS stays proportional.
+        allocated_mgo_energy = (100 + 5*.9 + 20)*42700
+        expected_ghg = (expected_energy-allocated_mgo_energy)*(13.5+residual_ttw*1e6/40500)
+        expected_ghg += allocated_mgo_energy*(14.4+mgo_ttw*1e6/42700)
         self.assertAlmostEqual(row["fuel_cost"], 1000 * 470 + 600 * 575 + 125 * 720)
         self.assertAlmostEqual(row["energy_mj"], expected_energy)
         self.assertAlmostEqual(row["ets_t"], expected_ets)

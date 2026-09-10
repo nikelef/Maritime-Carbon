@@ -1,5 +1,9 @@
 # Implementation verification
 
+Current allocation release: see [engine 6.6 verification](PRIORITIZED_ALLOCATION_VERIFICATION.md)
+for annual prioritized FuelEU attribution, updated optimization and September 10 checks.
+The dated records below describe earlier releases.
+
 Completed locally on 2026-09-07. LNG/RFNBO source review and engine revision are
 dated 2026-09-07 (`6.0.0`, `EU-2026-09-07`).
 

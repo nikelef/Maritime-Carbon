@@ -1,5 +1,7 @@
 # Desktop release sanity check — 9 September 2026
 
+Historical artifact: the recorded figures/screenshots below predate engine 6.6.0 annual prioritized FuelEU allocation. They are retained as the original review record; use the updated analyst guide and PRIORITIZED_ALLOCATION_VERIFICATION.md for the current engine.
+
 Engine: 6.5.2. Ruleset remains EU-2026-09-07. This review verifies software behavior under recorded assumptions; it is not a new legal or certification audit.
 
 ## Result

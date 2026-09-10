@@ -1,7 +1,7 @@
 """Versioned planning rules. See docs/REGULATORY_BASIS.md for applicability."""
-ENGINE_VERSION = "6.5.2"
-RULESET_VERSION = "EU-2026-09-07"
-CHECKED_ON = "2026-09-07"
+ENGINE_VERSION = "6.6.0"
+RULESET_VERSION = "EU-2026-09-10"
+CHECKED_ON = "2026-09-10"
 REFERENCE_G = 91.16
 REDUCTIONS = {2025: .02, 2030: .06, 2035: .145, 2040: .31, 2045: .62, 2050: .80}
 GWP_CH4 = 28.0
@@ -14,6 +14,7 @@ LNG_CONSUMERS = {
     "lbsi": ("Lean-burn spark-ignited · 2.6% slip", .026),
 }
 SOURCES = [
+    {"title": "European Commission · FuelEU annual prioritized allocation", "url": "https://transport.ec.europa.eu/document/download/d4426ccc-ef46-4292-8b6d-5bf7a620f5ba_en?filename=fueleu_guidance_document_for_shipping_companies.pdf#page=51", "detail": "8 October 2025 guidance, section 4.4, pages 51–52: optional annual attribution of MRV-eligible energy, including conventional fuels, to the Article 2 energy scope. The app elects lowest-WtW-first attribution; ETS remains separate."},
     {"title": "FuelEU Maritime · Regulation (EU) 2023/1805", "url": "https://eur-lex.europa.eu/eli/reg/2023/1805/oj/eng", "detail": "Articles 2, 4, 5, 6, 10, 20, 21, 23; Annexes I, II and IV."},
     {"title": "European Commission · FuelEU implementation guidance", "url": "https://transport.ec.europa.eu/transport-modes/maritime/decarbonising-maritime-transport-fueleu-maritime/questions-and-answers-regulation-eu-20231805-use-renewable-and-low-carbon-fuels-maritime-transport_en", "detail": "Scope, fuel evidence, ship-specific banking and pooling."},
     {"title": "European Commission · Maritime ETS FAQ", "url": "https://climate.ec.europa.eu/areas-action/transport-decarbonisation/reducing-emissions-shipping-sector/faq-maritime-transport-eu-emissions-trading-system-ets_en", "detail": "Reporting-year phase-in, greenhouse gases and proportional extra-EU scope."},
