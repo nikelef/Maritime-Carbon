@@ -4,6 +4,27 @@ This edition reruns the owner's single-voyage case with engine **6.7.0** and rul
 set **EU-2026-09-10-r2**. It replaces the historical review film for current
 calculations. Earlier MP4s, source recordings and audits are preserved.
 
+## Latest first-page revision
+
+The latest file is `current-engine/revised-intro/Maritime_Carbon_Revised.mp4`
+under `video-artifacts/single-voyage/`, with its matching `_Review.zip` package.
+Its first page and narration now say:
+
+> Helping shipping professionals compare Fuel EU and EU ETS planning options —
+> from alternative fuels and pooling to shore power.
+
+The first page removes “One bulk carrier. One voyage.” and the “not a guaranteed
+global minimum” qualifier. The logo, background, “A FLEET DECISION, MADE VISIBLE”,
+“FuelEU Maritime + EU ETS”, “A real app walkthrough.” and the remaining footer
+text are retained and aligned. The longer opening is timed to the measured
+narration. All subsequent footage and narration content are retained; timestamps
+shift by the change in first-page duration. The renderer verifies unchanged
+compressed picture packets for every subsequent scene. The first-page change
+does not change the calculation or later report explanations.
+
+The revised video lasts **2 minutes 42 seconds** (162.30 seconds); its opening
+card lasts 10.23 seconds, including the complete narration and a closing pause.
+
 ## Requested changes
 
 - “HVO is selected as the replacement fuel for this case”, followed by “But more

@@ -8,7 +8,24 @@ See [the current-engine review notes](../../docs/VIDEO_CURRENT_ENGINE_REVIEW.md)
 
 ## Latest: current engine, fuel options, shore power and annual allocation
 
-The current edition is `current-engine/Maritime_Carbon_Updated.mp4`, with its
+The latest first-page revision is
+`current-engine/revised-intro/Maritime_Carbon_Revised.mp4`, with its matching
+`_Review.zip`. It replaces the first card and narration with “Helping shipping
+professionals compare Fuel EU and EU ETS planning options — from alternative
+fuels and pooling to shore power.” The first card removes the single-vessel/voyage
+wording and the global-optimum qualifier, keeping the remaining branding and text.
+After producing the current-engine edition below, run:
+
+```powershell
+$env:PYTHONPATH='.tmp/video-deps'
+.\.venv\Scripts\python.exe -m scripts.video.revise_intro
+```
+
+The script measures the new speech, extends the first card accordingly, reuses
+the later clips and audio, and verifies that every later compressed picture
+packet is unchanged. It retains the previous complete video.
+
+The preceding edition is `current-engine/Maritime_Carbon_Updated.mp4`, with its
 matching `_Review.zip`, under `video-artifacts/single-voyage/`. The generic opening
 is retained from the previous pitch. All input and result scenes after it are
 recorded again against the current engine. Earlier video files are preserved.

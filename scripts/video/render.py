@@ -48,7 +48,17 @@ def card(kind, *, example_line="Two fictional vessels. A real app walkthrough.",
     for i, width in enumerate((74, 59, 44)):
         d.rounded_rectangle((138, 95+i*16, 138+width, 101+i*16), radius=2, fill=GREEN)
     d.text((240, 88), "MARITIME CARBON", font=font(40, True), fill="white")
-    if kind == "intro":
+    if kind == "planning_intro":
+        d.text((140, 244), "A FLEET DECISION, MADE VISIBLE", font=font(23, True), fill=GREEN)
+        headline = ("Helping shipping professionals\n"
+                    "compare Fuel EU and EU ETS\n"
+                    "planning options —\n"
+                    "from alternative fuels and pooling\n"
+                    "to shore power")
+        d.multiline_text((140, 316), headline, font=font(66, True), fill="white", spacing=8)
+        d.text((140, 750), "FuelEU Maritime + EU ETS", font=font(38), fill="#c1d8d2")
+        d.text((140, 815), "A real app walkthrough.", font=font(30), fill="#c1d8d2")
+    elif kind == "intro":
         d.text((140, 244), "A FLEET DECISION, MADE VISIBLE", font=font(23, True), fill=GREEN)
         d.multiline_text((132, 316), "Which fuel.\nWhich voyage leg.\nAt what cost?", font=font(100, True), fill="white", spacing=7)
         d.text((140, 750), "FuelEU Maritime + EU ETS", font=font(38), fill="#c1d8d2")
@@ -66,7 +76,10 @@ def card(kind, *, example_line="Two fictional vessels. A real app walkthrough.",
         d.rounded_rectangle((140, 657, 833, 755), radius=10, fill=GREEN)
         d.text((179, 675), "Let’s talk about your fleet.", font=font(38, True), fill=INK)
         d.text((140, 812), "Maritime Carbon · FuelEU + EU ETS planning", font=font(29), fill="#c1d8d2")
-    d.text((140, 980), "Illustrative case · Planning assumptions · Lowest evaluated option, not a guaranteed global minimum",
+    footer = "Illustrative case · Planning assumptions · Lowest evaluated option"
+    if kind != "planning_intro":
+        footer += ", not a guaranteed global minimum"
+    d.text((140, 980), footer,
            font=font(22), fill="#a8c3bc")
     im.save(path)
     return path
