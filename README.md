@@ -10,8 +10,9 @@ as a Word review draft, with a [readable source](docs/ANALYST_GUIDE.md). It expl
 every desktop input, the voyage-leg recommendations, worked examples and exports.
 See the [desktop release checks](docs/RELEASE_SANITY_CHECK.md) and
 [pitch-video storyboard](docs/VIDEO_DEMO_PLAN.md). The latest
-[single-voyage pitch video notes](docs/VIDEO_SINGLE_VOYAGE_REVIEW.md) document
-the revised case and timed narration. The first video review cut has
+[single-voyage pitch video notes](docs/VIDEO_CURRENT_ENGINE_REVIEW.md) document
+the current-engine rerun, fuel menu, shore-power setting and prioritized allocation.
+The first video review cut has
 [review notes and draft LinkedIn text](docs/VIDEO_REVIEW_NOTES.md), with
 [reproducible recording and editing scripts](scripts/video/README.md).
 

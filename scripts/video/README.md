@@ -4,7 +4,32 @@ This workflow records real application interactions against Django's isolated te
 database. It does not open or modify `workspace.sqlite3`. Fixtures are fictional.
 The latest recording contains one bulk carrier and Voyage 1 in 2026, the owner's
 specified three-fuel consumption, HVO assumptions and the actual selected result.
-See [the single-voyage review notes](../../docs/VIDEO_SINGLE_VOYAGE_REVIEW.md).
+See [the current-engine review notes](../../docs/VIDEO_CURRENT_ENGINE_REVIEW.md).
+
+## Latest: current engine, fuel options, shore power and annual allocation
+
+The current edition is `current-engine/Maritime_Carbon_Updated.mp4`, with its
+matching `_Review.zip`, under `video-artifacts/single-voyage/`. The generic opening
+is retained from the previous pitch. All input and result scenes after it are
+recorded again against the current engine. Earlier video files are preserved.
+
+```powershell
+$env:PYTHONPATH='.tmp/video-deps'
+.\.venv\Scripts\python.exe -m scripts.video.refresh prepare
+$env:DJANGO_DEBUG='1'
+$env:PLAYWRIGHT_CHANNEL='msedge'
+.\.venv\Scripts\python.exe manage.py test scripts.video.capture_refresh --noinput
+.\.venv\Scripts\python.exe -m scripts.video.refresh render
+```
+
+The prepare step calculates current results and derives all numerical captions
+from them. The capture verifies the prepared results against the actual run,
+stored report, audit, strategy cards and energy-allocation table. The renderer
+preserves speech timing, the real button click and full-width tables, and checks
+that the allocation presentation precedes the ship-by-ship annual ledger.
+The browser's actual fuel dropdown is recorded with filming-only `base-select`
+appearance so its popup appears in the screencast; its options remain unchanged.
+This edition has a measured duration, with no fixed 80-second limit.
 
 ## Current pitch and earlier revisions
 

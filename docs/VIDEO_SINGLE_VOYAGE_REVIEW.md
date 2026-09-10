@@ -1,5 +1,9 @@
 # Maritime Carbon — single-voyage video review
 
+The latest film is now documented in [current-engine video notes](VIDEO_CURRENT_ENGINE_REVIEW.md),
+including the requested dropdown, shore-power and prioritized-allocation scenes.
+This page preserves the earlier edition and its original figures.
+
 Historical artifact: the recorded figures/screenshots below predate engine 6.6.0 annual prioritized FuelEU allocation. They are retained as the original review record; use the updated analyst guide and PRIORITIZED_ALLOCATION_VERIFICATION.md for the current engine.
 
 Current review edition: `Maritime_Carbon_One_Voyage_2026_Final.mp4` adds 20 seconds explaining all four evaluated strategies from lowest to highest cost before selecting the best option. The two HVO evaluations reach the same lowest cost; allowing pooling does not lead to a pooling purchase in this case. Current fuels with pooling cost EUR 1,613.55 more, and current fuels with penalties have the highest total cost. The pointer highlights each actual strategy card while its narration finishes.
