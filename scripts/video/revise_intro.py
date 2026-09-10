@@ -16,9 +16,9 @@ from scripts.video.single_voyage import VOICE
 
 OUT = PREVIOUS / "revised-intro"
 FINAL = OUT / "Maritime_Carbon_Revised.mp4"
-TEXT = ("Helping shipping professionals compare Fuel EU and EU ETS planning options — "
-        "from alternative fuels and pooling to shore power.")
-SPOKEN = ("Helping shipping professionals compare Fuel E U and E U E T S planning options. "
+TEXT = ("Helping Shipping Professionals Compare Fuel EU and EU ETS Planning Options - "
+        "From Alternative Fuels and Pooling to Shore Power")
+SPOKEN = ("Maritime Carbon. Helping shipping professionals compare Fuel E U and E U E T S planning options. "
           "From alternative fuels and pooling to shore power.")
 
 
@@ -35,6 +35,12 @@ async def main():
     previous = json.loads((PREVIOUS / "edit-timeline.json").read_text(encoding="utf-8"))
     assert previous[0]["key"] == "intro"
     old_intro = previous[0]
+    source_video = PREVIOUS / "Maritime_Carbon_Updated.mp4"
+    source_intro = old_intro
+    if not source_video.exists():
+        source_video = FINAL
+        source_intro = json.loads((OUT / "edit-timeline.json").read_text(encoding="utf-8"))[0]
+    old_hashes = packet_hashes(source_video)
     digest = hashlib.sha256((VOICE+"-4%"+SPOKEN).encode()).hexdigest()[:16]
     mp3 = OUT / f"{digest}.mp3"
     if not mp3.exists():
@@ -69,7 +75,7 @@ async def main():
     run(["-i", speech_wav, "-af", f"loudnorm=I=-16:TP=-1.5:LRA=7,adelay={round(lead*1000)}:all=1,apad",
          "-t", intro_seconds, "-ar", RATE, "-ac", 2, "-c:a", "pcm_s16le", intro_audio])
     tail_audio = OUT / "tail-audio.wav"
-    run(["-i", PREVIOUS / "Maritime_Carbon_Updated.mp4", "-ss", old_intro["duration"],
+    run(["-i", source_video, "-ss", source_intro["duration"],
          "-vn", "-ar", RATE, "-ac", 2, "-c:a", "pcm_s16le", tail_audio])
     narration = OUT / "narration.wav"
     with wave.open(str(narration), "wb") as target:
@@ -82,9 +88,8 @@ async def main():
          "-c:a", "aac", "-b:a", "192k", "-ar", RATE, "-ac", 2, "-t", duration,
          "-sn", "-movflags", "+faststart", FINAL])
     run(["-i", FINAL, "-f", "null", "-"])
-    old_hashes = packet_hashes(PREVIOUS / "Maritime_Carbon_Updated.mp4")
     new_hashes = packet_hashes(FINAL)
-    assert new_hashes[frames:] == old_hashes[old_intro["frames"]:], "Later picture packets changed"
+    assert new_hashes[frames:] == old_hashes[source_intro["frames"]:], "Later picture packets changed"
     assert abs(seconds_in_video(FINAL)-duration) < .05
     metadata = subprocess.run([FFMPEG, "-hide_banner", "-i", str(FINAL)], capture_output=True, text=True).stderr
     assert re.findall(r"Stream #0:\d+.*?: (Video|Audio|Subtitle):", metadata) == ["Video", "Audio"]
@@ -99,7 +104,7 @@ async def main():
     verification = dict(duration_seconds=duration, intro_seconds=intro_seconds,
                         intro_speech_seconds=speech_seconds, preserved_picture_packets=len(new_hashes)-frames,
                         remaining_picture_identical=True, first_page_text=TEXT,
-                        source_video="../Maritime_Carbon_Updated.mp4")
+                        source_video=source_video.name, source_intro_frames=source_intro["frames"])
     (OUT / "verification.json").write_text(json.dumps(verification, indent=2, ensure_ascii=False), encoding="utf-8")
     package = OUT / "Maritime_Carbon_Revised_Review.zip"
     with ZipFile(package, "w") as archive:

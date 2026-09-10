@@ -50,11 +50,11 @@ def card(kind, *, example_line="Two fictional vessels. A real app walkthrough.",
     d.text((240, 88), "MARITIME CARBON", font=font(40, True), fill="white")
     if kind == "planning_intro":
         d.text((140, 244), "A FLEET DECISION, MADE VISIBLE", font=font(23, True), fill=GREEN)
-        headline = ("Helping shipping professionals\n"
-                    "compare Fuel EU and EU ETS\n"
-                    "planning options —\n"
-                    "from alternative fuels and pooling\n"
-                    "to shore power")
+        headline = ("Helping Shipping Professionals\n"
+                    "Compare Fuel EU and EU ETS\n"
+                    "Planning Options -\n"
+                    "From Alternative Fuels and Pooling\n"
+                    "to Shore Power")
         d.multiline_text((140, 316), headline, font=font(66, True), fill="white", spacing=8)
         d.text((140, 750), "FuelEU Maritime + EU ETS", font=font(38), fill="#c1d8d2")
         d.text((140, 815), "A real app walkthrough.", font=font(30), fill="#c1d8d2")

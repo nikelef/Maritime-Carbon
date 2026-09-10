@@ -8,10 +8,10 @@ calculations. Earlier MP4s, source recordings and audits are preserved.
 
 The latest file is `current-engine/revised-intro/Maritime_Carbon_Revised.mp4`
 under `video-artifacts/single-voyage/`, with its matching `_Review.zip` package.
-Its first page and narration now say:
+Its narration opens with “Maritime Carbon.” The first-page headline reads:
 
-> Helping shipping professionals compare Fuel EU and EU ETS planning options —
-> from alternative fuels and pooling to shore power.
+> Helping Shipping Professionals Compare Fuel EU and EU ETS Planning Options -
+> From Alternative Fuels and Pooling to Shore Power
 
 The first page removes “One bulk carrier. One voyage.” and the “not a guaranteed
 global minimum” qualifier. The logo, background, “A FLEET DECISION, MADE VISIBLE”,
@@ -22,8 +22,8 @@ shift by the change in first-page duration. The renderer verifies unchanged
 compressed picture packets for every subsequent scene. The first-page change
 does not change the calculation or later report explanations.
 
-The revised video lasts **2 minutes 42 seconds** (162.30 seconds); its opening
-card lasts 10.23 seconds, including the complete narration and a closing pause.
+The revised video lasts **2 minutes 44 seconds** (164.43 seconds); its opening
+card lasts 12.37 seconds, including “Maritime Carbon”, the headline narration and a closing pause.
 
 ## Requested changes
 
