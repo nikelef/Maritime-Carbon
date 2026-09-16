@@ -121,6 +121,15 @@ class Vessel:
     sea_fuels: list[dict] = field(default_factory=list)
     consumption: list[dict] | None = None
     berth_consumer: str = ""
+    wind_mode: str = "none"  # none, retrofit, existing (consumption already net)
+    wind_capex: float = 0
+    wind_annual: float = 0
+    wind_reference: str = ""
+    wind_confirmed: bool = False
+    wind_reward: bool = False
+    wind_power_kw: float = 0
+    wind_propulsion_kw: float = 0
+    wind_reward_reference: str = ""
 
     def consumption_entries(self):
         """Annual tonnes by operating category, including existing pilot fuel."""
@@ -179,6 +188,8 @@ class Vessel:
         return fsum(entry["sea_t"] for entry in self.sea_fuel_entries())
 
     def validate(self, fuels):
+        from .wind import validate_wind
+        validate_wind(self)
         text_value(self.name, "Vessel name", 100)
         text_value(self.imo, "IMO number", 7, False)
         if self.imo and (not self.imo.isascii() or not self.imo.isdigit() or len(self.imo) != 7 or sum(int(c) * w for c, w in zip(self.imo[:6], range(7, 1, -1))) % 10 != int(self.imo[-1])):
@@ -195,7 +206,7 @@ class Vessel:
             seen_consumption = set()
             for entry in self.consumption:
                 quantity_keys = ("intra_t", "extra_t", "outside_t", "eu_berth_t", "non_eu_berth_t")
-                if not isinstance(entry, dict) or "fuel" not in entry or set(entry) - {"voyage", "fuel", "ops_share", *quantity_keys}:
+                if not isinstance(entry, dict) or "fuel" not in entry or set(entry) - {"voyage", "fuel", "ops_share", "wind", *quantity_keys}:
                     raise ValueError("Each consumption row needs a fuel and tonnes by operating category.")
                 code = entry["fuel"]
                 if not isinstance(code, str) or code not in fuels:

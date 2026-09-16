@@ -1,4 +1,13 @@
 "use strict";
+const windMode = document.querySelector('[name="wind_mode"]');
+if (windMode) {
+  const updateWind = () => document.querySelectorAll('.consumption-table').forEach(table => {
+    const hasErrors = table.querySelector('[data-wind-cell] .errorlist');
+    table.classList.toggle('wind-columns-hidden', windMode.value === 'none' && !hasErrors);
+  });
+  windMode.addEventListener('change', updateWind);
+  updateWind();
+}
 document.querySelectorAll("[data-sea-fuel-editor]").forEach(editor => {
   const rows = editor.querySelector("[data-sea-fuel-rows]");
   const template = editor.querySelector("[data-sea-fuel-template]");
@@ -27,6 +36,11 @@ document.querySelectorAll("[data-sea-fuel-editor]").forEach(editor => {
         ops.disabled = remove.checked || leg.value !== "eu_berth_t";
         ops.placeholder = leg.value === "eu_berth_t" ? "Default" : "N/A";
       }
+      row.querySelectorAll('[data-wind-cell] input').forEach(input => {
+        const sea = ["intra_t", "extra_t", "outside_t"].includes(leg?.value);
+        input.disabled = remove.checked || !sea;
+        input.placeholder = sea ? "Review for wind" : "N/A";
+      });
       refresh();
     };
     remove.addEventListener("change", () => { update(); if (remove.checked) add.focus(); });

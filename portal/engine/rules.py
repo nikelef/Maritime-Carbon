@@ -1,7 +1,7 @@
 """Versioned planning rules. See docs/REGULATORY_BASIS.md for applicability."""
-ENGINE_VERSION = "6.7.0"
-RULESET_VERSION = "EU-2026-09-10-r2"
-CHECKED_ON = "2026-09-10"
+ENGINE_VERSION = "6.8.0"
+RULESET_VERSION = "EU-2026-09-16-wind"
+CHECKED_ON = "2026-09-16"
 REFERENCE_G = 91.16
 REDUCTIONS = {2025: .02, 2030: .06, 2035: .145, 2040: .31, 2045: .62, 2050: .80}
 # FuelEU Annex I refers to RED Annex V C(4); MRV/ETS uses different GWP100.
@@ -17,6 +17,7 @@ LNG_CONSUMERS = {
     "lbsi": ("Lean-burn spark-ignited · 2.6% slip", .026),
 }
 SOURCES = [
+    {"title": "European Commission · FuelEU wind-assisted propulsion", "url": "https://transport.ec.europa.eu/document/download/d4426ccc-ef46-4292-8b6d-5bf7a620f5ba_en?filename=fueleu_guidance_document_for_shipping_companies.pdf#page=53", "detail": "Section 4.5, Table 4.12 and Annex I of Regulation 2023/1805: discrete wind intensity factors, separate from physical fuel savings; reviewed EEDI/EEXI Pwind and Pprop."},
     {"title": "European Commission · FuelEU GWP and RFNBO calculations", "url": "https://transport.ec.europa.eu/document/download/d4426ccc-ef46-4292-8b6d-5bf7a620f5ba_en?filename=fueleu_guidance_document_for_shipping_companies.pdf#page=38", "detail": "Sections 4.3.3 and 4.3.6: FuelEU CH4=25, N2O=298; RFNBO denominator reward through 2033. ETS retains CH4=28, N2O=265."},
     {"title": "European Commission · FuelEU annual prioritized allocation", "url": "https://transport.ec.europa.eu/document/download/d4426ccc-ef46-4292-8b6d-5bf7a620f5ba_en?filename=fueleu_guidance_document_for_shipping_companies.pdf#page=51", "detail": "8 October 2025 guidance, section 4.4, pages 51–52: optional annual attribution of MRV-eligible energy, including conventional fuels, to the Article 2 energy scope. The app minimizes attained intensity including the elected RFNBO reward; ETS remains separate."},
     {"title": "FuelEU Maritime · Regulation (EU) 2023/1805", "url": "https://eur-lex.europa.eu/eli/reg/2023/1805/oj/eng", "detail": "Articles 2, 4, 5, 6, 10, 20, 21, 23; Annexes I, II and IV."},
@@ -44,6 +45,16 @@ def ets_phase(year):
 def rfnbo_reward(year):
     target(year)
     return 2.0 if year <= 2033 else 1.0
+
+
+def wind_factor(power_kw, propulsion_kw):
+    """Annex I / Commission guidance Table 4.12; no rounding/interpolation."""
+    from math import isfinite
+    if any(isinstance(x, bool) or not isinstance(x, (int, float)) or not isfinite(x)
+           for x in (power_kw, propulsion_kw)) or power_kw < 0 or propulsion_kw <= 0:
+        raise ValueError("Wind power must be nonnegative and propulsion power positive and finite.")
+    ratio = power_kw / propulsion_kw
+    return .95 if ratio >= .15 else .97 if ratio >= .10 else .99 if ratio >= .05 else 1.0
 
 
 def penalty(deficit_t, attained_g, consecutive=1):

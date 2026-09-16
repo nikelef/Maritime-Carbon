@@ -15,3 +15,6 @@
 
 /* Keep destructive actions distinct from the link that opens a saved record. */
 .button.danger{color:var(--red);border-color:#d6aaaa}.button.danger:hover{background:#fff1ee;border-color:var(--red)}.delete-link{margin-left:18px}.saved-report-item{display:flex;align-items:center;gap:16px;border-bottom:1px solid var(--line);padding-right:26px}.saved-report-item:last-child{border-bottom:0}.saved-report-item>.report-list-row{flex:1;min-width:0;border:0}.heading-actions{flex-wrap:wrap}
+
+/* Propulsion inputs remain visible without JavaScript; inactive wind hides them progressively. */
+.consumption-table{min-width:1300px}.consumption-table th:nth-child(1){width:10%}.consumption-table th:nth-child(2){width:20%}.consumption-table th:nth-child(3){width:20%}.consumption-table th:nth-child(4){width:11%}.consumption-table th:nth-child(5){width:12%}.consumption-table th:nth-child(6),.consumption-table th:nth-child(7){width:10%}.consumption-table th:nth-child(8){width:7%}.consumption-table.wind-columns-hidden{min-width:960px}.wind-columns-hidden [data-wind-cell]{display:none}.wind-columns-hidden th:nth-child(1){width:13%}.wind-columns-hidden th:nth-child(2){width:26%}.wind-columns-hidden th:nth-child(3){width:25%}.wind-columns-hidden th:nth-child(4){width:12%}.wind-columns-hidden th:nth-child(5){width:15%}.wind-columns-hidden th:nth-child(8){width:9%}

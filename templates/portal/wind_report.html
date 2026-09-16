@@ -1,0 +1,24 @@
+{% load formatting %}
+{% if result.wind_configured %}
+<section class="panel" id="wind-package">
+  <div class="panel-heading"><div><span class="eyebrow">WIND & THE COMPLETE STRATEGY</span><h2>What the package changes</h2></div></div>
+  <p class="panel-note">Present-cost differences against the reference over {{ result.horizon }}. Positive amounts are savings; negative amounts are extra cost. These are the combined effects of the selected wind, fuel, shore-power and pooling choices.</p>
+  <div class="table-scroll"><table class="numeric-table"><thead><tr><th>Fuel</th><th>EU ETS</th><th>FuelEU penalties</th><th>Pooling</th><th>Electricity</th><th>Implementation</th><th>Net saving</th></tr></thead><tbody><tr>
+    <td>{{ selected.package_comparison.fuel_cost|money }}</td><td>{{ selected.package_comparison.ets_cost|money }}</td><td>{{ selected.package_comparison.penalty_cost|money }}</td><td>{{ selected.package_comparison.pool_cost|money }}</td><td>{{ selected.package_comparison.electricity_cost|money }}</td><td>{{ selected.package_comparison.implementation_cost|money }}</td><td><strong>{{ selected.savings|money }}</strong></td>
+  </tr></tbody></table></div>
+  <p class="panel-note">Wind equipment and annual operating cost: {{ selected.wind_npv_cost|money }} present value, already included in implementation costs. Existing-wing operating costs also appear in the reference.</p>
+  {% for decision in selected.decisions %}
+  <div class="panel-heading"><div>
+  <h3>{{ decision.vessel }}</h3>
+  <p>{% if decision.wind_selected %}<strong>Install wind assistance at the start of the horizon.</strong> Net current-fuel reduction before switching: {{ decision.wind_saved_t|number }} t/year.{% elif decision.wind_mode == "existing" %}<strong>Retain existing wind assistance.</strong> Baseline consumption already includes its effect; no second fuel reduction or new capital charge.{% elif decision.wind_mode == "retrofit" %}Wind retrofit evaluated; not selected at the entered performance and costs.{% else %}No wind installation specified.{% endif %}</p>
+  {% if decision.wind_selected %}<details><summary>Fuel changes by voyage leg</summary>
+    {% for leg in decision.leg_replacements %}<p>Voyage {{ leg.voyage }} · {{ leg.leg_label }} · {{ leg.fuel }}: {{ leg.original_t|number }} t original − {{ leg.wind_saved_t|number }} t net wind reduction − {{ leg.replaced_t|number }} t switched = {{ leg.remaining_t|number }} t retained per year.</p>{% endfor %}
+  </details>{% endif %}
+  </div></div>
+  {% endfor %}
+  <div class="table-scroll"><table class="numeric-table"><thead><tr><th>Year</th><th>Vessel</th><th>Wind cost · EUR</th><th>Current fuel avoided before switching · t</th><th>Intensity before wind reward</th><th>Wind factor</th><th>Attained intensity</th><th>Raw FuelEU balance · tCO₂e</th></tr></thead><tbody>
+  {% for row in selected.rows %}<tr><td>{{ row.year }}</td><td>{{ row.vessel }}</td><td>{{ row.wind_cost|money }}</td><td>{{ row.wind_saved_t|number }}</td><td>{{ row.attained_before_wind_g|floatformat:3 }}</td><td>{{ row.wind_factor|floatformat:2 }}</td><td>{{ row.attained_g|floatformat:3 }}</td><td>{{ row.balance_t|number }}</td></tr>{% endfor %}
+  </tbody></table></div>
+  <p class="panel-note">FuelEU intensities are gCO₂e/MJ. Wind savings are net of equipment auxiliary demand and apply only to the reviewed propulsion share. Wind power is not added to the FuelEU energy denominator. The wind factor gives no additional ETS credit. For vessels outside FuelEU, the factor is 1 and the intensity/balance ledger is zero.</p>
+</section>
+{% endif %}

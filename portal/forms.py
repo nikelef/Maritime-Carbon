@@ -106,6 +106,16 @@ class ConsumptionFuelForm(StyledForm):
     fuel = forms.ChoiceField(label="Fuel type")
     tonnes = forms.FloatField(min_value=0, max_value=10000000, label="Annual tonnes")
     ops_share = forms.FloatField(required=False, min_value=0, max_value=100, label="EU berth replaceable by shore power · %")
+    propulsion_share = forms.FloatField(required=False, min_value=0, max_value=100, label="Sea fuel used for propulsion · %")
+    net_saving = forms.FloatField(required=False, min_value=0, max_value=99, label="Net wind saving on propulsion · %")
+
+    def clean(self):
+        values = super().clean()
+        if values.get("leg") in ("eu_berth_t", "non_eu_berth_t") and any(values.get(k) for k in ("propulsion_share", "net_saving")):
+            raise forms.ValidationError("Wind savings apply to sea propulsion only; clear wind values on berth rows.")
+        if (values.get("propulsion_share") is None) != (values.get("net_saving") is None):
+            raise forms.ValidationError("Enter both propulsion share and net wind saving, or leave both blank.")
+        return values
 
     def __init__(self, *args, fuels, **kwargs):
         super().__init__(*args, **kwargs)
@@ -141,6 +151,8 @@ def consumption_initial_rows(vessel):
                 row = {"voyage": entry.get("voyage", 1), "fuel": entry["fuel"], "leg": leg, "tonnes": entry[leg]}
                 if leg == "eu_berth_t" and "ops_share" in entry:
                     row["ops_share"] = entry["ops_share"] * 100
+                if leg in entry.get("wind", {}):
+                    row.update({key: value * 100 for key, value in entry["wind"][leg].items()})
                 rows.append(row)
     return sorted(rows, key=lambda row: row["voyage"]) or [{"voyage": 1, "fuel": vessel.fuel, "leg": "intra_t", "tonnes": 0}]
 
@@ -177,6 +189,15 @@ class VesselForm(StyledForm):
     fuel_annual = forms.FloatField(required=False, min_value=0, max_value=100000000, label="Fuel system extra annual operating cost · EUR")
     fuel_systems_confirmed = forms.BooleanField(required=False, label="Fuel system, pilot consumption, efficiency and investment assumptions have been reviewed")
     technical_reference = forms.CharField(required=False, max_length=1000, label="Fuel-system technical review reference", widget=forms.Textarea(attrs={"rows": 2}), help_text="Required for methane, methanol, ammonia and hydrogen use. Record engine/fuel-system approval, pilot needs, fuel-cell vs combustion pathway, and cost/efficiency basis.")
+    wind_mode = forms.ChoiceField(required=False, choices=[("none", "No wind assistance"), ("retrofit", "Evaluate a wind retrofit"), ("existing", "Existing wings · consumption already includes savings")], label="Wind-assisted propulsion")
+    wind_capex = forms.FloatField(required=False, min_value=0, max_value=100000000, label="Wind installation & downtime cost · EUR", help_text="New retrofit only. Paid at the start of the horizon if selected. Existing equipment capital is sunk.")
+    wind_annual = forms.FloatField(required=False, min_value=0, max_value=100000000, label="Wind annual maintenance & operating cost · EUR", help_text="Exclude fuel/electricity already included in net fuel savings, and costs already entered elsewhere.")
+    wind_confirmed = forms.BooleanField(required=False, label="Wind baseline, compatibility, net performance and costs have been reviewed")
+    wind_reference = forms.CharField(required=False, max_length=1000, label="Wind technical & baseline reference", widget=forms.Textarea(attrs={"rows": 2}), help_text="Record wing type, route/weather/speed basis, propulsion shares, auxiliary demand, engine/pilot limits, installation constraints and cost evidence. Retrofit consumption must be before wind savings; existing consumption must already include them.")
+    wind_reward = forms.BooleanField(required=False, label="Apply the separately reviewed FuelEU wind reward")
+    wind_power_kw = forms.FloatField(required=False, min_value=0, max_value=100000000, label="Available effective wind power Pwind · kW")
+    wind_propulsion_kw = forms.FloatField(required=False, min_value=0, max_value=100000000, label="EEDI/EEXI propulsion power Pprop · kW", help_text="Use the prescribed technical-file power, including relevant shaft motors. Do not substitute an unreviewed nameplate rating.")
+    wind_reward_reference = forms.CharField(required=False, max_length=1000, label="FuelEU wind-power evidence reference", widget=forms.Textarea(attrs={"rows": 2}), help_text="EEDI/EEXI technical file or recognised-body assessment following MEPC.1/Circ.896. The app records your review; it does not certify the installation. Fuel savings do not determine the reward.")
 
     def __init__(self, *args, fuels, **kwargs):
         super().__init__(*args, **kwargs)
@@ -239,6 +260,9 @@ class VesselForm(StyledForm):
 
     def vessel(self):
         values = {k: v for k, v in self.cleaned_data.items() if k != "revision"}
+        values["wind_mode"] = values.get("wind_mode") or "none"
+        for key in ("wind_capex", "wind_annual", "wind_power_kw", "wind_propulsion_kw"):
+            values[key] = values.get(key) or 0
         for key in ("pilot_t", "alternative_pilot_share", "fuel_capex", "fuel_annual"):
             if key in values and values[key] is None:
                 values[key] = 0
@@ -257,6 +281,8 @@ class VesselForm(StyledForm):
                 entry[row["leg"]] = row["tonnes"]
                 if row["leg"] == "eu_berth_t" and row["ops_share"] is not None:
                     entry["ops_share"] = row["ops_share"] / 100
+                if row["leg"] in ("intra_t", "extra_t", "outside_t") and row["propulsion_share"] is not None:
+                    entry.setdefault("wind", {})[row["leg"]] = {key: row[key]/100 for key in ("propulsion_share", "net_saving")}
             values.update(consumption=list(entries.values()), sea_t=0, berth_t=0, pilot_t=0,
                           intra_share=0, extra_share=0, fuel=next(iter(entries.values()))["fuel"])
         if self._use_mix:

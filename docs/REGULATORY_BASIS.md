@@ -1,6 +1,7 @@
 # Regulatory basis and calculation contract
 
-Allocation source review: 2026-09-10. Ruleset: `EU-2026-09-10-r2`. Engine: `6.7.0`.
+Allocation source review: 2026-09-10; wind source review: 2026-09-16.
+Ruleset: `EU-2026-09-16-wind`. Engine: `6.8.0`.
 Earlier dated sections below record the history; the current allocation contract supersedes proportional attribution and the 6.6 physical-WtW ordering when an RFNBO reward applies.
 This is a bounded planning model, not a statement of universal legal applicability.
 
@@ -435,3 +436,13 @@ separate shortfall stress test; no new RFNBO flexibility mechanism is introduced
 Exports identify `annual_reward_aware` and include each source's
 `reward_multiplier`. The old `annual_lowest_wtw` marker identifies 6.6 snapshots.
 See RFNBO_GWP_VERIFICATION.md for independent numerical and integration checks.
+
+## Wind-assisted propulsion (engine 6.8.0)
+
+Wind equipment can be selected together with fuel switching and pooling.
+Physical net savings apply only to reviewed sea-propulsion demand; existing
+wind baselines are not reduced again. The separate Annex I intensity reward
+uses the discrete Pwind/Pprop bands described in Commission guidance 4.5,
+Table 4.12. Wind contributes no additional energy-denominator MJ or ETS credit.
+See [the wind accounting contract](WIND_ASSISTANCE.md) for equations, evidence
+gates, baseline handling, economic assumptions and modelling boundaries.

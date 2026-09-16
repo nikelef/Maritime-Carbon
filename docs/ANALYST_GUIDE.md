@@ -451,3 +451,15 @@ The following sources were consulted for the regulatory context. The guide's des
 - Project repository: https://github.com/nikelef/Maritime-Carbon
 
 Review status: prepared for the owner's review. Before external distribution, confirm terminology, commercial assumptions, company-specific procedures and the intended scope of any compliance statements.
+
+## Wings and wind-assisted propulsion
+
+For a proposed retrofit, choose **Evaluate a wind retrofit** in the vessel
+editor, enter consumption before wind, and review the propulsion share and
+net saving for every sea row. Enter installation/downtime and annual costs.
+Existing wings use consumption already reflecting their savings and no new
+capital charge. FuelEU wind power evidence and reward election are separate
+from operational fuel savings. Wind works with fuel switching, shore power
+and pooling; reports show the complete cost comparison and annual wind ledger.
+Follow [Wind assistance: setup and accounting](WIND_ASSISTANCE.md) for the
+worked example, each new input, import workflow and limitations.

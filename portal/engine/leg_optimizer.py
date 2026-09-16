@@ -1,14 +1,16 @@
 """Bounded continuous voyage-leg search using full fleet and horizon costs."""
 from math import fsum, sqrt
+from itertools import product
 from .allocation import allocation_breakpoints
+from .wind import wind_choices
 
 from .calculator import (leg_demands, optimize_fuels, profile, simulate,
-                         add_replacement_priority, GRID_INTERVALS)
+                         add_replacement_priority, GRID_INTERVALS, with_wind)
 
 
-def leg_decision(demands, shares, ops):
+def leg_decision(demands, shares, ops, wind=False):
     fractions = tuple((key, min(1.0, max(0.0, shares.get(key, 0)))) for key in demands)
-    return (fsum(demands[key]["weight"] * value for key, value in fractions), ops, None, fractions)
+    return with_wind((fsum(demands[key]["weight"] * value for key, value in fractions), ops, None, fractions), wind)
 
 
 def optimize_legs(scenario, use_pool):
@@ -19,7 +21,7 @@ def optimize_legs(scenario, use_pool):
         return None
     demands = [leg_demands(v, scenario) for v in scenario.vessels]
     initial = [leg_decision(ds, {key: out["replacements"].get(d["fuel"], 0)
-                               for key, d in ds.items()}, out["ops"])
+                               for key, d in ds.items()}, out["ops"], out.get("wind_selected", False))
                for ds, out in zip(demands, seed["decisions"])]
     zero = [leg_decision(ds, {}, False) for ds in demands]
     profile_cache, score_cache = {}, {}
@@ -47,7 +49,7 @@ def optimize_legs(scenario, use_pool):
         ds = demands[index]
         a, b = dict(left[3]), dict(right[3])
         def choice(t):
-            return leg_decision(ds, {key: a[key] + t * (b[key]-a[key]) for key in ds}, left[1])
+            return leg_decision(ds, {key: a[key] + t * (b[key]-a[key]) for key in ds}, left[1], len(left) > 4 and left[4])
         # Fuel supply is linear in the allocations and shared across the fleet.
         first = scenario.start_year
         pa, pb = physical(index, first, left), physical(index, first, right)
@@ -157,7 +159,11 @@ def optimize_legs(scenario, use_pool):
         return best_choice, best_value
 
     best, best_value = initial, score(initial)
-    for start in (initial, zero):
+    starts = [initial, zero]
+    if any(v.wind_mode == "retrofit" for v in scenario.vessels):
+        starts.append([leg_decision(ds, {}, False, v.wind_mode == "retrofit")
+                       for v, ds in zip(scenario.vessels, demands)])
+    for start in starts:
         current, value = list(start), score(start)
         if value is None:
             continue
@@ -167,8 +173,8 @@ def optimize_legs(scenario, use_pool):
                 alternative = next(f for f in scenario.fuels if f.code == vessel.alternative)
                 can_switch = vessel.compatible and alternative.available_for_use and vessel.max_blend > 0
                 keys = [key for key, d in ds.items() if d["fuel"] != vessel.alternative] if can_switch else []
-                for ops in ([False, True] if vessel.ops_ready else [False]):
-                    candidate = leg_decision(ds, dict(current[index][3]), ops)
+                for ops, wind in product(([False, True] if vessel.ops_ready else [False]), wind_choices(vessel)):
+                    candidate = leg_decision(ds, dict(current[index][3]), ops, wind)
                     attempt = list(current); attempt[index] = candidate
                     candidate_value = score(attempt)
                     if candidate_value is not None and candidate_value < value-1e-4:
@@ -177,8 +183,8 @@ def optimize_legs(scenario, use_pool):
                         shares = dict(current[index][3])
                         others = fsum(d["weight"]*shares[k] for k,d in ds.items() if k != key)
                         limit = min(1.0, max(0.0, vessel.max_blend-others)/ds[key]["weight"])
-                        left = leg_decision(ds, shares | {key: 0.0}, ops)
-                        right = leg_decision(ds, shares | {key: limit}, ops)
+                        left = leg_decision(ds, shares | {key: 0.0}, ops, wind)
+                        right = leg_decision(ds, shares | {key: limit}, ops, wind)
                         candidate, candidate_value = line_search(current, index, left, right)
                         if candidate_value is not None and candidate_value < value-1e-4:
                             current[index], value, improved = candidate, candidate_value, True
@@ -191,9 +197,9 @@ def optimize_legs(scenario, use_pool):
                                 continue
                             energy = min(ds[donor]["weight"]*shares[donor],
                                          ds[recipient]["weight"]*(1-shares[recipient]))
-                            left = leg_decision(ds, shares, ops)
+                            left = leg_decision(ds, shares, ops, wind)
                             right = leg_decision(ds, shares | {donor: shares[donor]-energy/ds[donor]["weight"],
-                                                              recipient: shares[recipient]+energy/ds[recipient]["weight"]}, ops)
+                                                              recipient: shares[recipient]+energy/ds[recipient]["weight"]}, ops, wind)
                             candidate, candidate_value = line_search(current, index, left, right)
                             if candidate_value is not None and candidate_value < value-1e-4:
                                 current[index], value, improved = candidate, candidate_value, True

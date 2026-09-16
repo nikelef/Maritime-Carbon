@@ -1,0 +1,22 @@
+<section class="panel form-panel" id="wind-assistance">
+  <h2>Wings & wind-assisted propulsion</h2>
+  <p class="section-help">Compare a proposed rigid-wing, suction-wing or other wind installation alongside fuel switching, shore power and pooling. The proposed retrofit operates from the start of the case horizon. Annual performance stays fixed.</p>
+  {% include 'portal/field.html' with field=form.wind_mode %}
+  <p class="section-help"><strong>Proposed retrofit:</strong> enter consumption before wind savings. For every sea row above, specify the propulsion share and the net saving on that propulsion fuel. For example, 80% propulsion and 10% net saving remove 8% of that row's tonnes before fuel switching. Enter 0% saving for unaffected legs or pilot fuel that must remain. Berth consumption is unaffected.</p>
+  <p class="section-help">Net savings must already include the wind equipment's auxiliary power demand, at the same transport service and speed. Use a reviewed estimate for each voyage, category and fuel; the app does not predict aerodynamics or weather. Fuel switching applies to the remaining demand.</p>
+  <p class="section-help"><strong>Existing wings:</strong> entered consumption must already include their effect. Leave proposed net savings blank or zero. Existing wings remain in every strategy, their annual cost is included, and no new capital cost or second fuel reduction is applied.</p>
+  <div class="form-grid">
+    {% include 'portal/field.html' with field=form.wind_capex %}
+    {% include 'portal/field.html' with field=form.wind_annual %}
+  </div>
+  {% include 'portal/field.html' with field=form.wind_confirmed %}
+  {% include 'portal/field.html' with field=form.wind_reference %}
+  <h3>Separate FuelEU wind reward</h3>
+  <p class="section-help">Reviewed Pwind/Pprop ratios below 5%, 5–&lt;10%, 10–&lt;15% and at least 15% give intensity multipliers of 1.00, 0.99, 0.97 and 0.95 respectively. The factor applies to annual FuelEU intensity only. It does not reduce physical fuel, ETS emissions or the energy denominator.</p>
+  {% include 'portal/field.html' with field=form.wind_reward %}
+  <div class="form-grid">
+    {% include 'portal/field.html' with field=form.wind_power_kw %}
+    {% include 'portal/field.html' with field=form.wind_propulsion_kw %}
+  </div>
+  {% include 'portal/field.html' with field=form.wind_reward_reference %}
+</section>
