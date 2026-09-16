@@ -2,7 +2,7 @@
 
 ## Analyst operating guide
 
-Review draft · Desktop application · Engine 6.7.0 · 10 September 2026
+Review draft · Desktop application · Engine 6.8.0 · 16 September 2026
 
 This guide explains how to build, check and interpret a fleet planning case in the FuelEU Maritime and EU ETS application. It is intended for analysts preparing budget comparisons and management recommendations. It describes the implemented model and its input requirements; it does not certify a fuel, approve a pool or replace a verifier's assessment.
 
@@ -12,7 +12,7 @@ The guide uses paragraphs, subparagraphs and bullets throughout. All worked exam
 
 ### 1.1 Define a consistent comparison
 
-Decide whether the question concerns the coming reporting year, a multi-year budget, a fuel conversion, shore power, or purchasing FuelEU surplus. Write down the common service requirement before changing fuels: the same annual voyages and transport activity must be supported in every strategy. Otherwise, an apparent saving may reflect less activity rather than a better compliance choice.
+Decide whether the question concerns the coming reporting year, a multi-year budget, a fuel conversion, a wind retrofit, shore power, or purchasing FuelEU surplus. Write down the common service requirement before changing fuels: the same annual voyages and transport activity must be supported in every strategy. Otherwise, an apparent saving may reflect less activity rather than a better compliance choice.
 
 The app compares total modelled cost: purchased fuel, shore electricity, ETS allowances, FuelEU penalties, external pooling, incremental investment and operating costs, and other fleet costs. It ranks the lowest evaluated present cost over the selected reporting horizon. A higher fuel bill can therefore be economical if allowance and FuelEU settlement savings exceed it.
 
@@ -23,6 +23,7 @@ The app evaluates one nominated alternative fuel system per vessel in each case.
 - Annual fuel consumption by vessel, voyage identifier, fuel and operating category, including existing pilot fuel and berth consumption.
 - The fuel library: delivered prices, lower calorific values, lifecycle and combustion factors, sustainability documentation and annual supply limits.
 - Vessel characteristics, engine categories, blend or substitution limits, relative efficiency, pilot requirements and any conversion costs.
+- For wind: the existing-equipment or proposed-retrofit baseline, propulsion share and net saving per sea row, reviewed installation/operating costs, and separate FuelEU power evidence.
 - Shore-power compatibility, eligible berth loads, generator and connection efficiencies, electricity tariffs and incremental costs.
 - The reporting horizon, allowance-price assumptions, discount rate, verified ship-specific opening banks and immediately preceding penalty history.
 - Any external pool quotation, its price unit and available annual surplus, plus notes supporting the scope assumptions.
@@ -438,11 +439,66 @@ The model does not optimize voyage scheduling, bunkering ports, alternative tech
 
 Current activity and selected quantities repeat annually. Some multi-year rules are stress assumptions rather than settled future tariffs. A bounded search can miss a better allocation, especially in complex fleets with interacting supply and pooling limits. Use the app to prepare a transparent comparison and direct further analysis, not to claim guaranteed global optimality.
 
-## 12. References and version control
+## 12. Wings and wind-assisted propulsion
+
+### 12.1 Choose the correct baseline
+
+Open the vessel editor and find Wings & wind-assisted propulsion. No wind assistance leaves wind out of the calculation. Evaluate a wind retrofit allows the optimizer to select a proposed installation together with fuel switching, shore power and pooling. Existing wings means the entered consumption already includes their operational effect; the equipment remains in every strategy.
+
+For a proposed retrofit, use annual consumption before wind savings. For existing wings, use the actual or reviewed annual consumption with wind already included, leave proposed net savings blank or zero, and enter zero new wind investment. The app does not apply a second fuel reduction or reconstruct a hypothetical no-wing baseline. Existing annual operating costs are included in the reference and all other strategies.
+
+### 12.2 Complete the two wind columns on every sea row
+
+Propulsion share is the percentage of that row's fuel serving propulsion. Exclude hotel loads, boilers and other unaffected consumers. Net wind saving on propulsion is the assessed percentage reduction of that propulsion fuel at the same speed and transport service, after accounting for the wind equipment's auxiliary energy demand. The allowed net-saving range is 0–99%; the app does not predict performance from wing dimensions, weather or installed power.
+
+For a proposed retrofit, both values are required on every sea row, including explicit zeros for unaffected voyages or pilot fuel that must remain. The app first multiplies the row's tonnes by propulsion share and net saving, then subtracts that amount before fuel switching. For example, 1,000 tonnes, 80% propulsion and 10% net saving remove 80 tonnes and leave 920 tonnes before switching. The 200 tonnes attributed to non-propulsion demand remain.
+
+Savings are entered separately by voyage, fuel and sea category. Berth rows receive no wind saving; shore power remains a separate choice. The net estimate must already reconcile equipment auxiliary consumption in the physical fuel inputs. Separate additional auxiliary-fuel streams are not generated, so a retrofit that changes consumer or fuel mix requires a separately reconciled consumption assessment. A gross sail-saving estimate is insufficient. Confirm that the estimate also remains valid for the nominated alternative fuel system and its pilot and efficiency assumptions.
+
+### 12.3 Enter installation costs and technical evidence
+
+Wind installation & downtime cost is the complete new retrofit investment in EUR. If the installation is selected, this amount is charged once at the start of the horizon. The model assumes the retrofit operates throughout that horizon; it does not schedule delayed or mid-year commissioning. Existing capital is treated as sunk and must not be entered again.
+
+Wind annual maintenance & operating cost is the additional yearly equipment cost in EUR. Do not duplicate auxiliary fuel or electricity costs already included in the net-savings estimate, or costs recorded elsewhere. The full fixed cost applies when wind is active; it is not scaled down by the alternative-fuel share.
+
+Confirm the wind baseline, compatibility, net performance and cost review, and enter the Wind technical & baseline reference. Record the wing type, route/weather/speed basis, propulsion shares, auxiliary demand, engine and pilot limits, structural or operational constraints and investment evidence. The field records your review; it does not grant class approval or verify supplier performance.
+
+### 12.4 Review the separate FuelEU wind reward
+
+Apply the separately reviewed FuelEU wind reward only with the supporting power assessment. Available effective wind power Pwind and EEDI/EEXI propulsion power Pprop are entered in kW. Use the prescribed technical-file definitions, including relevant shaft motors in Pprop, rather than an unreviewed engine nameplate rating. Record the EEDI/EEXI technical file or recognised-body assessment following MEPC.1/Circ.896 in the FuelEU wind-power evidence reference.
+
+- Pwind/Pprop below 0.05: multiplier 1.00, with no intensity reward.
+- Pwind/Pprop at least 0.05 and below 0.10: multiplier 0.99.
+- Pwind/Pprop at least 0.10 and below 0.15: multiplier 0.97.
+- Pwind/Pprop at least 0.15: multiplier 0.95.
+
+The bands are discrete; the app does not round the ratio into a higher band or interpolate between bands. A forecast of 10% fuel savings does not establish a 10% power ratio. Physical savings and the FuelEU reward are separate inputs. With the reward unchecked, the multiplier is 1.00 even if wind fuel savings are selected.
+
+The multiplier applies to the ship's annual FuelEU intensity after fuel, shore-power and RFNBO accounting. It does not add wind MJ to the energy denominator, change fuel emission factors or provide an additional ETS reduction. For example, an intensity of 90 gCO2e/MJ before the wind reward becomes 87.3 with a 0.97 multiplier. The compliance balance then uses that attained intensity and the covered physical energy. Existing wings apply their reviewed reward in the reference as well as the other strategies. Vessels outside FuelEU receive no FuelEU reward.
+
+### 12.5 Read the combined recommendation
+
+Wind can be selected with the nominated alternative fuel, shore power and pooling. Fuel replacement fractions apply to the demand remaining after wind on each leg. The aggregate replacement limit and search weights retain the original sea-demand basis, giving a conservative service-share cap. Full equipment cost, fuel purchases, ETS, FuelEU balances, banking, shared supply and pooling needs are recalculated for each evaluated combination.
+
+The report's What the package changes section compares discounted fuel, ETS, FuelEU penalties, pooling, electricity and implementation costs against the reference. Positive amounts are savings; negative amounts are additional costs. The differences reconcile to the total net saving. Wind equipment cost is already included in implementation cost and must not be added again. These are combined-strategy effects, not independent technology savings to be summed together.
+
+The annual wind ledger shows equipment cost, current fuel avoided before switching, intensity before the wind reward, the multiplier, attained intensity and the raw FuelEU balance. Expand Fuel changes by voyage leg to reconcile original tonnes minus net wind reduction minus fuel switched with current fuel retained. Alternative fuel and its pilot are separately shown in the normal fuel recommendation and ledger.
+
+### 12.6 Imports, records and modelling limits
+
+Existing Excel and CSV fleet templates remain compatible. Imported vessels start with no wind assumption or reward. Open each imported vessel to review the wind settings and the two sea-row percentages; consumption alone is not evidence of a wind installation. CSV reports include wind fields and leg reconciliation, and JSON retains the complete inputs, results and evidence references. Older saved reports are not recalculated or rewritten.
+
+Annual wind performance and the selected equipment remain fixed over the horizon. The model does not predict aerodynamics, route weather, installation timing, changing engine efficiency or methane slip at reduced loads. Use separately reviewed performance cases for low, central and high savings assumptions, and obtain the relevant technical and verifier assessments before relying on a prospective installation. The bounded optimizer still does not guarantee a global fleet optimum or search every possible pool subset.
+
+Wind accounting is based on Annex I of Regulation (EU) 2023/1805 and Commission guidance section 4.5, Table 4.12. Wind sources were reviewed on 16 September 2026; the other rule interpretations are inherited from the preceding release. Further worked equations and the detailed technical contract are in docs/WIND_ASSISTANCE.md in the project repository.
+
+## 13. References and version control
+
+- Commission wind-assisted propulsion guidance: https://transport.ec.europa.eu/document/download/d4426ccc-ef46-4292-8b6d-5bf7a620f5ba_en?filename=fueleu_guidance_document_for_shipping_companies.pdf#page=53 (section 4.5, pages 53–54; Table 4.12 and Annex I of Regulation (EU) 2023/1805).
 
 - Commission allocation guidance: https://transport.ec.europa.eu/document/download/d4426ccc-ef46-4292-8b6d-5bf7a620f5ba_en?filename=fueleu_guidance_document_for_shipping_companies.pdf#page=51 (section 4.4, pages 51–52; see also section 4.3.3 for FuelEU GWP100 and section 4.3.6 for RFNBO).
 
-The following sources were consulted for the regulatory context. The guide's descriptions of field behavior, search limits, accounting sequence and exports are based on the application's engine 6.7.0, forms and release tests. Regulatory changes after the recorded ruleset date require review before use; the guide does not assert a new legal ruleset.
+The following sources were consulted for the regulatory context. The guide's descriptions of field behavior, search limits, accounting sequence and exports are based on the application's engine 6.8.0, forms and release tests. Regulatory changes after the recorded ruleset date require review before use; the guide does not assert a new legal ruleset.
 
 - European Commission, Maritime ETS general guidance, especially section 5.2.2 on sustainable-fuel CO2 zero-rating: https://climate.ec.europa.eu/document/download/31875b4f-39b9-4cde-a4e2-fbb8f65ee703_en?filename=policy_transport_shipping_gd1_maritime_en.pdf
 - European Commission, Maritime ETS questions and answers, including reporting-year coverage and treatment of alternative fuels: https://climate.ec.europa.eu/areas-action/transport-decarbonisation/reducing-emissions-shipping-sector/faq-maritime-transport-eu-emissions-trading-system-ets_en
@@ -451,15 +507,3 @@ The following sources were consulted for the regulatory context. The guide's des
 - Project repository: https://github.com/nikelef/Maritime-Carbon
 
 Review status: prepared for the owner's review. Before external distribution, confirm terminology, commercial assumptions, company-specific procedures and the intended scope of any compliance statements.
-
-## Wings and wind-assisted propulsion
-
-For a proposed retrofit, choose **Evaluate a wind retrofit** in the vessel
-editor, enter consumption before wind, and review the propulsion share and
-net saving for every sea row. Enter installation/downtime and annual costs.
-Existing wings use consumption already reflecting their savings and no new
-capital charge. FuelEU wind power evidence and reward election are separate
-from operational fuel savings. Wind works with fuel switching, shore power
-and pooling; reports show the complete cost comparison and annual wind ledger.
-Follow [Wind assistance: setup and accounting](WIND_ASSISTANCE.md) for the
-worked example, each new input, import workflow and limitations.

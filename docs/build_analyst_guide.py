@@ -17,6 +17,8 @@ from docx.shared import Inches, Pt, RGBColor
 
 ROOT = Path(__file__).resolve().parent
 OUT = ROOT / "Maritime_Carbon_Analyst_Guide.docx"
+RULES = (ROOT.parent / "portal" / "engine" / "rules.py").read_text(encoding="utf-8")
+ENGINE_VERSION = re.search(r'^ENGINE_VERSION = "([^"]+)"', RULES, re.MULTILINE).group(1)
 
 
 def style(doc, name, size, before=0, after=6, color="202B33", bold=False):
@@ -73,7 +75,7 @@ def build():
     section.header.paragraphs[0].text = "MARITIME CARBON  |  ANALYST OPERATING GUIDE"
     footer = section.footer.paragraphs[0]
     footer.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    footer.add_run("Review draft · Engine 6.7.0  |  ")
+    footer.add_run(f"Review draft · Engine {ENGINE_VERSION}  |  ")
     field = OxmlElement("w:fldSimple"); field.set(qn("w:instr"), "PAGE")
     footer._p.append(field)
     doc.core_properties.title = "Maritime Carbon — Analyst operating guide"
@@ -118,7 +120,15 @@ def build():
     # Structural content check, independent of pagination.
     reopened = Document(OUT)
     assert not reopened.tables
-    expected = [re.sub(r"^#{1,3} |^- ", "", line) for line in source.splitlines() if line.strip()]
+    expected = []
+    for block in source.split("\n\n"):
+        block = block.strip()
+        if not block:
+            continue
+        if block.startswith("- "):
+            expected.extend(line.removeprefix("- ") for line in block.splitlines())
+        else:
+            expected.append(re.sub(r"^#{1,3} ", "", block).replace("\n", " "))
     actual = [p.text for p in reopened.paragraphs]
     assert actual == expected, "Document content differs from reviewed source"
     print(f"Created {OUT}: {len(actual)} paragraphs; {len(source.split())} words; zero tables")
