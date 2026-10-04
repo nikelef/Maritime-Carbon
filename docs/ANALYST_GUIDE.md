@@ -262,13 +262,13 @@ Enter MJ per tonne on the correct lower-heating-value basis. This determines ene
 
 ### 7.3 Well-to-wake intensity
 
-For applicable oil/biofuel pathways, enter the complete lifecycle intensity in gCO2e/MJ, including the relevant non-CO2 contribution. Use a value supported by the supplier pathway and applicable accounting basis. It affects FuelEU performance; lowering it does not independently zero the fuel's CO2 under ETS.
+For HVO/FAME, enter the complete lifecycle intensity in gCO2e/MJ, including the relevant non-CO2 contribution. Supported fossil HSFO, the VLSFO residual-oil assumption and MGO use fixed defaults and derived WtW; their factor fields cannot be changed. Use a value supported by the supplier pathway and applicable accounting basis. It affects FuelEU performance; lowering it does not independently zero the fuel's CO2 under ETS.
 
 The value represents the fuel code throughout the case. If batches have different lifecycle values or only some quantities qualify, do not present the whole code as a single certified low-carbon batch without reconciling those differences. This version does not provide separate batch-level certification or blended renewable-fraction inputs.
 
 ### 7.4 FuelEU well-to-tank factor
 
-For methane and RFNBO pathways, the form uses WtT rather than a directly entered complete WtW value. The engine adds the relevant physical combustion and methane-slip contribution using FuelEU CH4=25 and N2O=298. ETS calculations separately use CH4=28 and N2O=265. New-case oil defaults use the FuelEU factors; older saved complete WtW inputs remain as entered and require review before rerunning. Enter the certified FuelEU-adjusted WtT on the accounting basis expected by this model, including any applicable carbon-accounting adjustment. Entering a complete WtW value here would count part of the emissions twice.
+For methane and RFNBO pathways, the form uses WtT rather than a directly entered complete WtW value. The engine adds the relevant physical combustion and methane-slip contribution using FuelEU CH4=25 and N2O=298. ETS calculations separately use CH4=28 and N2O=265. Fossil oil defaults use the FuelEU factors. Older saved reports remain as recorded, but a new comparison rejects noncanonical fossil oil overrides. Use Restore fossil fuel defaults on the case page to correct them explicitly while retaining prices and supply limits. Enter the certified FuelEU-adjusted WtT on the accounting basis expected by this model, including any applicable carbon-accounting adjustment. Entering a complete WtW value here would count part of the emissions twice.
 
 An adjusted WtT can be negative where the applicable pathway accounting requires an adjustment; it is not permission to invent an offset. Review the certificate and methodology together. Fossil LNG uses the fixed WtT default implemented in the rules, so that field cannot be freely varied.
 

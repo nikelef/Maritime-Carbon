@@ -12,4 +12,4 @@ RUN DJANGO_DEBUG=1 python manage.py collectstatic --noinput \
     && useradd --system --uid 10001 --no-create-home maritime
 USER 10001
 EXPOSE 8000
-CMD ["waitress-serve", "--listen=0.0.0.0:8000", "--threads=4", "maritime.wsgi:application"]
+CMD ["python", "-m", "maritime.serve"]

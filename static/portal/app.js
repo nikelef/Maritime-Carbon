@@ -1,4 +1,35 @@
 "use strict";
+// Reveal fields before the browser focuses an invalid control in a closed panel.
+const revealPanels = element => {
+  for (let parent = element?.closest('details'); parent; parent = parent.parentElement?.closest('details')) {
+    parent.open = true;
+  }
+};
+document.addEventListener('invalid', event => revealPanels(event.target), true);
+document.querySelectorAll('.errorlist').forEach(revealPanels);
+const revealAnchor = () => {
+  let id;
+  try { id = decodeURIComponent(window.location.hash.slice(1)); } catch { return; }
+  const target = document.getElementById(id);
+  if (target) { revealPanels(target); target.scrollIntoView(); }
+};
+window.addEventListener('hashchange', revealAnchor);
+document.querySelectorAll('a[href^="#"]').forEach(link => link.addEventListener('click', () => {
+  // Also support selecting the same anchor again after closing its panel.
+  let id;
+  try { id = decodeURIComponent(link.getAttribute('href').slice(1)); } catch { return; }
+  revealPanels(document.getElementById(id));
+}));
+if (window.location.hash) revealAnchor();
+let printPanels = [];
+window.addEventListener('beforeprint', () => {
+  printPanels = [...document.querySelectorAll('details[data-disclosure]:not([open])')];
+  printPanels.forEach(panel => { panel.open = true; });
+});
+window.addEventListener('afterprint', () => {
+  printPanels.forEach(panel => { panel.open = false; });
+  printPanels = [];
+});
 const windMode = document.querySelector('[name="wind_mode"]');
 if (windMode) {
   const updateWind = () => document.querySelectorAll('.consumption-table').forEach(table => {

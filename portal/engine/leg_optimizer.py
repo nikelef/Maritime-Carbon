@@ -5,7 +5,7 @@ from .allocation import allocation_breakpoints
 from .wind import wind_choices
 
 from .calculator import (leg_demands, optimize_fuels, profile, simulate,
-                         add_replacement_priority, GRID_INTERVALS, with_wind)
+                         add_replacement_priority, GRID_INTERVALS, with_wind, saved_decision)
 
 
 def leg_decision(demands, shares, ops, wind=False):
@@ -13,16 +13,18 @@ def leg_decision(demands, shares, ops, wind=False):
     return with_wind((fsum(demands[key]["weight"] * value for key, value in fractions), ops, None, fractions), wind)
 
 
-def optimize_legs(scenario, use_pool):
+def optimize_legs(scenario, use_pool, *, initial_result=None):
     # Retain the previous search as a feasible incumbent: extending the search
     # must never discard a cheaper previously evaluated allocation.
-    seed = optimize_fuels(scenario, use_pool)
+    seed = optimize_fuels(scenario, use_pool) if initial_result is None else initial_result
     if seed is None:
         return None
     demands = [leg_demands(v, scenario) for v in scenario.vessels]
     initial = [leg_decision(ds, {key: out["replacements"].get(d["fuel"], 0)
                                for key, d in ds.items()}, out["ops"], out.get("wind_selected", False))
                for ds, out in zip(demands, seed["decisions"])]
+    if initial_result is not None:
+        initial = [saved_decision(out) for out in initial_result["decisions"]]
     zero = [leg_decision(ds, {}, False) for ds in demands]
     profile_cache, score_cache = {}, {}
 

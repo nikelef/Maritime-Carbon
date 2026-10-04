@@ -1,7 +1,7 @@
 """Versioned planning rules. See docs/REGULATORY_BASIS.md for applicability."""
-ENGINE_VERSION = "6.8.0"
-RULESET_VERSION = "EU-2026-09-16-wind"
-CHECKED_ON = "2026-09-16"
+ENGINE_VERSION = "6.9.0"
+RULESET_VERSION = "EU-2026-10-04-review"
+CHECKED_ON = "2026-10-04"
 REFERENCE_G = 91.16
 REDUCTIONS = {2025: .02, 2030: .06, 2035: .145, 2040: .31, 2045: .62, 2050: .80}
 # FuelEU Annex I refers to RED Annex V C(4); MRV/ETS uses different GWP100.
@@ -17,6 +17,11 @@ LNG_CONSUMERS = {
     "lbsi": ("Lean-burn spark-ignited · 2.6% slip", .026),
 }
 SOURCES = [
+    {"title": "European Commission · FuelEU banking and pooling guidance", "url": "https://transport.ec.europa.eu/document/download/d4426ccc-ef46-4292-8b6d-5bf7a620f5ba_en?filename=fueleu_guidance_document_for_shipping_companies.pdf#page=116", "detail": "Sections 11.2–11.3: banked surplus may be offered through a pool. This app restricts banks to their originating ship and settles only a fully covered modelled fleet; these are modelling limits."},
+    {"title": "European Commission · ETS and MRV general guidance", "url": "https://climate.ec.europa.eu/document/download/31875b4f-39b9-4cde-a4e2-fbb8f65ee703_en?filename=policy_transport_shipping_gd1_maritime_en.pdf", "detail": "18 November 2025 revision: scope, LNG slip, separate CO2 zero-rating conditions and retained non-CO2 gases; sections 4.1, 4.7 and 5.2, Annex III."},
+    {"title": "European Commission · FuelEU verification guidance", "url": "https://transport.ec.europa.eu/document/download/3b32fff7-c4c0-482c-8882-1ff8bf43648d_en?filename=Guidance_on_verification_for_the_FuelEU_Maritime_Regulation.pdf", "detail": "25 June 2026: verifier responsibilities, compliance balances and flexibility mechanisms. App evidence assertions do not replace verification or FuelEU database formalities."},
+    {"title": "European Commission · FuelEU enforcement guidance", "url": "https://transport.ec.europa.eu/document/download/8522a7d4-3e8d-4e74-85e8-282f0050bd17_en?filename=Guidance_for_Member_State_enforcement_of_the_FuelEU_Maritime_Regulation.pdf", "detail": "25 June 2026: additional checks, penalties and documents of compliance. Enforcement and statutory filings remain outside this planning application."},
+    {"title": "European Commission · Actual methane-slip guidelines", "url": "https://transport.ec.europa.eu/document/download/9573f03b-a821-46ee-8131-312832b4ca32_en?filename=guidelines_for_reporting_and_verification_actual_methane_cslip_ef.pdf", "detail": "Guidance for reporting and verification of measured tank-to-wake methane slip. The app implements selected default engine factors only; actual-factor assessment is separate."},
     {"title": "European Commission · FuelEU wind-assisted propulsion", "url": "https://transport.ec.europa.eu/document/download/d4426ccc-ef46-4292-8b6d-5bf7a620f5ba_en?filename=fueleu_guidance_document_for_shipping_companies.pdf#page=53", "detail": "Section 4.5, Table 4.12 and Annex I of Regulation 2023/1805: discrete wind intensity factors, separate from physical fuel savings; reviewed EEDI/EEXI Pwind and Pprop."},
     {"title": "European Commission · FuelEU GWP and RFNBO calculations", "url": "https://transport.ec.europa.eu/document/download/d4426ccc-ef46-4292-8b6d-5bf7a620f5ba_en?filename=fueleu_guidance_document_for_shipping_companies.pdf#page=38", "detail": "Sections 4.3.3 and 4.3.6: FuelEU CH4=25, N2O=298; RFNBO denominator reward through 2033. ETS retains CH4=28, N2O=265."},
     {"title": "European Commission · FuelEU annual prioritized allocation", "url": "https://transport.ec.europa.eu/document/download/d4426ccc-ef46-4292-8b6d-5bf7a620f5ba_en?filename=fueleu_guidance_document_for_shipping_companies.pdf#page=51", "detail": "8 October 2025 guidance, section 4.4, pages 51–52: optional annual attribution of MRV-eligible energy, including conventional fuels, to the Article 2 energy scope. The app minimizes attained intensity including the elected RFNBO reward; ETS remains separate."},

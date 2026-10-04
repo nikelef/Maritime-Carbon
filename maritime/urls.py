@@ -22,6 +22,7 @@ urlpatterns = [
     path("cases/<uuid:pk>/vessels/<int:index>/", views.vessel_edit, name="vessel_edit"),
     path("cases/<uuid:pk>/vessels/<int:index>/remove/", views.vessel_remove, name="vessel_remove"),
     path("cases/<uuid:pk>/fuels/extend/", views.fuel_library_extend, name="fuel_library_extend"),
+    path("cases/<uuid:pk>/fuels/restore-defaults/", views.fossil_defaults_restore, name="fossil_defaults_restore"),
     path("cases/<uuid:pk>/fuels/<str:code>/", views.fuel_edit, name="fuel_edit"),
     path("cases/<uuid:pk>/run/", views.run_analysis, name="run_analysis"),
     path("reports/", views.reports, name="reports"),

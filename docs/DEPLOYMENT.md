@@ -27,8 +27,10 @@ Set variables described in `.env.example` through the host's secret manager:
 - exact `DJANGO_ALLOWED_HOSTS` and HTTPS `DJANGO_CSRF_TRUSTED_ORIGINS`;
 - a PostgreSQL `DATABASE_URL`, normally with certificate-verified TLS configured
   to the database provider's requirements;
-- `TRUST_PROXY_HTTPS=1` only if the proxy strips incoming forwarded headers and
-  sets `X-Forwarded-Proto` itself. Restrict direct application-port access.
+- `TRUST_PROXY_HTTPS=1` and `WAITRESS_TRUSTED_PROXY` set to the immediate reverse
+  proxy's actual IPv4 or IPv6 peer address, only if that proxy strips incoming
+  forwarded headers and sets `X-Forwarded-Proto` itself. Pass the original public
+  `Host` header and restrict direct application-port access to that proxy.
 
 Do not copy the example placeholder secret. Startup rejects absent/obvious
 placeholder secrets, missing explicit hosts and SQLite in production. `.env`
@@ -36,6 +38,16 @@ files are not automatically loaded by Python; the host must inject variables.
 
 Build with `docker build -t maritime-carbon .`. The image runs as a non-root
 user and excludes customer databases and secrets.
+Its entrypoint is `python -m maritime.serve`, listening on port 8000 with four
+Waitress threads. This bootstrap validates proxy configuration and explicitly
+trusts only `X-Forwarded-Proto` from the configured peer; other forwarded headers
+are removed. Waitress sets the validated WSGI scheme for Django, avoiding an HTTPS
+redirect loop. The application retains the direct peer IP for login throttling.
+When HTTPS proxy trust is enabled, a missing/invalid proxy address, hostname,
+network range or wildcard causes startup to fail. For direct local HTTP, use
+`DJANGO_DEBUG=1`, `TRUST_PROXY_HTTPS=0` and leave `WAITRESS_TRUSTED_PROXY` unset.
+If using another WSGI entrypoint, configure equivalent peer validation and scheme
+translation there; Django deliberately does not trust raw forwarded headers.
 Before opening traffic, run the following once as a release job with production
 environment variables, using the same release image:
 

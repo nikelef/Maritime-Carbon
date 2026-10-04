@@ -1,0 +1,12 @@
+<details class="panel form-panel" id="fueleu-history" data-disclosure{% if form.non_field_errors or form.opening_bank.errors or form.prior_penalties.errors %} open{% endif %}>
+  <summary><h2>FuelEU history</h2></summary>
+  <p class="section-help">Enter this ship's position <strong>before the first reporting year of this case ({{ scenario.inputs.start_year }})</strong>. These are starting balances and history, not results calculated by this case. Use 0 in both fields when there is no banked surplus or preceding penalty history.</p>
+  <div class="form-grid">
+    {% include 'portal/field.html' with field=form.opening_bank %}
+    {% include 'portal/field.html' with field=form.prior_penalties %}
+  </div>
+  <p class="section-help"><strong>How the bank is used:</strong> the model first uses it against this ship's GHG-intensity deficit, then carries any unused balance forward. For example, a 100 tCO₂e bank covering a 60 tCO₂e deficit leaves 40 tCO₂e. This model does not offer banked surplus through a pool.</p>
+  <p class="section-help"><strong>How penalty history is used:</strong> if the first case year also incurs a deficit penalty, 1 preceding penalty year gives a 10% uplift; 2 gives 20%. These are additions to the standard penalty, not compounded increases. A year without a modelled deficit penalty resets the streak. Historical penalty payments are not charged again.</p>
+  {% if scenario.inputs.start_year == 2025 %}<p class="section-help"><strong>This case starts in 2025:</strong> enter 0 in both fields, because FuelEU has no earlier reporting-year history.</p>{% else %}<p class="section-help">FuelEU history starts with reporting year 2025. For example, a case starting in 2026 can include 2025's unused surplus and at most 1 preceding penalty year.</p>{% endif %}
+  <p class="section-help"><a href="{% url 'methodology' %}#fueleu-history" target="_blank" rel="noopener noreferrer">FuelEU history, banking and penalty methodology ↗</a></p>
+</details>

@@ -166,6 +166,7 @@ class DesktopReleaseTests(StaticLiveServerTestCase):
                     expect(page.locator("#id_consumption-0-voyage")).to_have_value("1")
                     # Exercise actual form saving, including voyage selection and a decimal quantity.
                     if index == 0:
+                        page.locator('summary').filter(has_text="Consumption & voyage mix").click()
                         page.locator("#id_consumption-0-voyage").select_option("3")
                         page.locator("#id_consumption-0-tonnes").fill("200.125")
                     page.get_by_role("button", name="Save vessel").click()

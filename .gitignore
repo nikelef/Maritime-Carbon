@@ -12,6 +12,9 @@ staticfiles/
 .pytest_cache/
 test-artifacts/
 video-artifacts/
+/Maritime_Carbon_One_Minute.mp4
+/Maritime_Carbon_long.mp4
+/readme.txt
 .planning/
 .tmp/
 .tmp-tests/

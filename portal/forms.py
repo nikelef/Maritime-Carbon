@@ -2,7 +2,7 @@ from dataclasses import asdict
 from django import forms
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
-from .engine.schema import ScenarioInput, Vessel
+from .engine.schema import ScenarioInput, Vessel, fossil_oil_defaults
 from .engine.rules import LNG_CONSUMERS
 from .models import Membership
 
@@ -171,8 +171,8 @@ class VesselForm(StyledForm):
     alternative = forms.ChoiceField(label="Alternative to evaluate")
     max_blend = forms.FloatField(min_value=0, max_value=100, label="Maximum alternative energy share · %", help_text="Overall cap across all current sea fuels, including current pilot. The optimizer chooses which fuels to reduce; an individual fuel may be fully replaced within this total cap. Reductions and replacement energy are allocated to the same voyage and sea leg. Equals thermal energy share only at energy ratio 1; not a Bxx mass/volume specification.")
     compatible = forms.BooleanField(required=False, label="Technical compatibility and blend limit have been checked")
-    opening_bank = forms.FloatField(min_value=0, max_value=100000000, label="Opening FuelEU bank · tCO₂e", help_text="Verified surplus belonging to this ship only.")
-    prior_penalties = forms.IntegerField(min_value=0, max_value=25, label="Immediately preceding consecutive penalty years")
+    opening_bank = forms.FloatField(min_value=0, max_value=100000000, label="Banked surplus at case start · tCO₂e", help_text="Unused, verified FuelEU GHG-intensity surplus carried into the first reporting year for this ship. Enter 0 if none. This is a compliance balance, not EUR, fuel tonnes or EU ETS allowances.")
+    prior_penalties = forms.IntegerField(min_value=0, max_value=25, label="Consecutive penalty years before case start", help_text="Count the uninterrupted reporting years immediately before this case that ended with a FuelEU deficit penalty after settlement. Enter 0 if the preceding year had none. Exclude the case's first year, ETS costs and shore-power port-call penalties; use reporting years, not payment dates.")
     ops_ready = forms.BooleanField(required=False, label="Evaluate shore power: ship and intended ports are compatible")
     ops_fraction = forms.FloatField(min_value=0, max_value=100, label="Default EU berth share replaceable by shore power · %", help_text="Used for EU berth rows with a blank shore-power percentage. Exclude boiler and other fuel use that shore electricity cannot replace. Each EU berth row can override this default.")
     generator_efficiency = forms.FloatField(min_value=5, max_value=100, label="Generator electrical efficiency · %", help_text="One efficiency applies to all EU berth fuel selected for shore-power replacement.")
@@ -320,7 +320,8 @@ class FuelForm(StyledForm):
 
     def __init__(self, *args, fuel, **kwargs):
         super().__init__(*args, **kwargs)
-        if fuel.rfnbo or fuel.pathway == "methane":
+        self.fossil_defaults = fossil_oil_defaults(fuel.code)
+        if self.fossil_defaults is None and (fuel.rfnbo or fuel.pathway == "methane"):
             self.fields.pop("wtw")
         else:
             self.fields.pop("wtt")
@@ -338,6 +339,25 @@ class FuelForm(StyledForm):
             self.fields["lcv"].disabled = True
         if fuel.code == "LNG":
             self.fields["wtt"].disabled = True
+        if self.fossil_defaults is not None:
+            # Django takes disabled values from initial, so use canonical values
+            # even when an older saved case contains invalid overrides.
+            self.initial.update(self.fossil_defaults)
+            for key in ("lcv", "co2", "ch4", "n2o", "wtw"):
+                if key in self.fields:
+                    self.fields[key].disabled = True
+            self.fields["co2"].help_text = "Fixed Annex II fossil CO₂ factor. MGO uses its gas-oil pathway; HSFO and this VLSFO entry use the residual-oil pathway."
+            self.fields["lcv"].help_text = "Fixed lower calorific value for this supported Annex II pathway. Confirm that the actual fuel matches it."
+            self.fields["ch4"].help_text = self.fields["n2o"].help_text = "This fossil-oil pathway uses the regulatory default. Actual measured fossil-oil factors require a separate assessment."
+            self.fields["wtw"].help_text = "Calculated from fixed fossil well-to-tank and consumer defaults using FuelEU CH₄=25 and N₂O=298. Save to restore these defaults in an older case. Another VLSFO composition needs separate assessment."
+
+    def clean(self):
+        data = super().clean()
+        if self.fossil_defaults is not None:
+            # Also restore the explicit upstream factor for legacy oil cases;
+            # the view persists these reviewed values only on an explicit Save.
+            data.update(self.fossil_defaults)
+        return data
 
 
 class MemberForm(StyledForm):

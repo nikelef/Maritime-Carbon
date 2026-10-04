@@ -58,9 +58,8 @@ SECURE_HSTS_PRELOAD = not DEBUG
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_REFERRER_POLICY = "same-origin"
 X_FRAME_OPTIONS = "DENY"
-# Set only when a trusted reverse proxy strips and sets this header itself.
-if os.environ.get("TRUST_PROXY_HTTPS") == "1":
-    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+# maritime.serve validates the immediate proxy and lets Waitress translate its
+# trusted scheme into wsgi.url_scheme. Never trust raw forwarded headers here.
 DATA_UPLOAD_MAX_MEMORY_SIZE = 1_000_000
 FILE_UPLOAD_MAX_MEMORY_SIZE = 1_000_000
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"

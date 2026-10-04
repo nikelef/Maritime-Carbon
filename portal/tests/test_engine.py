@@ -15,6 +15,23 @@ def case(**kwargs):
 
 
 class RegulatoryReferenceTests(SimpleTestCase):
+    def test_commission_mrv_worked_example(self):
+        # Commission ETS/MRV guidance, 18 November 2025, section 4.7, pp. 45–46:
+        # 100 t HFO + 200 t HVO + 300 t LNG (Otto medium) = 2,017.43 tCO2e.
+        # Its illustrative HVO physical CO2 factor is 3.115; no ETS zero-rating
+        # is applied in this MRV physical-emissions example.
+        fuels = {fuel.code: fuel for fuel in default_fuels()}
+        hvo = replace(fuels["HVO"], co2=3.115, ets_eligible=False)
+        total = (100 * emissions_factor(fuels["HSFO"], 2026)
+                 + 200 * emissions_factor(hvo, 2026)
+                 + 300 * emissions_factor(fuels["LNG"], 2026, "otto_medium"))
+        self.assertAlmostEqual(total, 2017.43, places=2)
+
+    def test_commission_fueleu_published_penalty_example(self):
+        # Commission FuelEU guidance, section 12.1, p. 123: balance
+        # -1,221,220,000 gCO2e and intensity 90.77 -> EUR 787,551 (rounded).
+        self.assertAlmostEqual(penalty(1221.22, 90.77), 787551, delta=1)
+
     def test_exact_target_boundaries(self):
         expected = {2025: 89.3368, 2029: 89.3368, 2030: 85.6904, 2034: 85.6904, 2035: 77.9418, 2040: 62.9004, 2045: 34.6408, 2050: 18.232}
         for year, value in expected.items():
@@ -106,6 +123,8 @@ class PhysicalAndFinancialTests(SimpleTestCase):
         self.assertEqual(row["total_cost"], row["fuel_cost"] + row["ets_cost"])
 
     def test_bank_is_not_transferred_to_another_vessel(self):
+        # This is the application's restrictive banking policy, not a legal ban
+        # on offering a banked surplus through an Article 21 pool.
         self.data.vessels.append(replace(self.data.vessels[0], name="Second", sea_t=2000))
         self.data.vessels[0].opening_bank = 10000
         result = simulate(self.data, [(0, False), (0, False)], True)

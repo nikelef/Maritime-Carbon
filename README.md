@@ -155,10 +155,13 @@ Affected reports show a prominent partial-cost warning.
 
 Existing Django cases keep their original fuel library. Use **Add available fuel
 pathways** on the case page to extend it without replacing existing assumptions.
-Engine 6.8.0 uses ruleset EU-2026-09-16-wind. Saved reports retain their original
+Engine 6.9.0 uses ruleset EU-2026-10-04-review. Saved reports retain their original
 engine, inputs and results; pre-6.6 reports disclose their proportional FuelEU
 attribution, while 6.6 reports retain physical-WtW ordering. Review saved fuel
-inputs before rerunning with the current method. See the
+inputs before rerunning with the current method. Older fossil oil overrides
+are blocked until explicitly restored through **Restore fossil fuel defaults**.
+RFNBO shortfalls now use physical scoped fuel energy separately from GHG
+attribution, excluding actual shore electricity. See the
 [LNG/RFNBO setup guide](docs/ALTERNATIVE_FUELS.md) for the new inputs.
 
 This is a planning product, not a verifier, compliance filing service or fuel
@@ -220,6 +223,12 @@ docs/                        Regulatory basis, deployment and verification
 SECURITY.md                  Security controls and production secrets guide
 ```
 
-Current correction release: engine **6.8.0**, ruleset **EU-2026-09-16-wind**.
+Current correction release: engine **6.9.0**, ruleset **EU-2026-10-04-review**.
+See [the 4 October corrections and verification](docs/CORRECTIONS_2026-10-04.md).
 See [RFNBO and GWP verification](docs/RFNBO_GWP_VERIFICATION.md). Saved results
 retain their original factors and method; review saved complete WtW inputs before rerunning.
+
+The [1 October UI and sanity review](docs/SANITY_CHECK_2026-10-01.md) records
+compact vessel/methodology sections, operational checks and current source review.
+Banked surplus is reserved for its originating ship by this model; bank-funded
+pooling permitted in Commission guidance requires separate assessment.

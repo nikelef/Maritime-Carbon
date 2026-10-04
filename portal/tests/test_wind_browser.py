@@ -45,6 +45,8 @@ class WindBrowserTests(StaticLiveServerTestCase):
             page.get_by_label("Password").fill(password)
             page.get_by_role("button", name="Sign in securely").click()
             page.goto(f"{self.live_server_url}/cases/{case.pk}/vessels/0/")
+            page.locator('summary').filter(has_text="Consumption & voyage mix").click()
+            page.locator('#wind-assistance > summary').click()
             expect(page.locator("#id_consumption-0-propulsion_share")).to_be_hidden()
             page.locator("#id_wind_mode").select_option("retrofit")
             expect(page.locator("#id_consumption-0-propulsion_share")).to_be_visible()

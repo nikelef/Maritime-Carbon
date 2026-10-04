@@ -144,10 +144,12 @@ class RFNBOAllocationTests(SimpleTestCase):
             r=profile(v,data,year,.6,True)
             sources=r["fueleu_allocation"]
             self.assertAlmostEqual(r["attained_g"],vertex_minimum(sources,r["energy_mj"],reward),places=9)
-            self.assertAlmostEqual(r["rewarded_energy_mj"],r["energy_mj"]+(reward-1)*r["rfnbo_energy_mj"])
+            self.assertAlmostEqual(r["rewarded_energy_mj"],r["energy_mj"]+(reward-1)*r["allocated_rfnbo_energy_mj"])
             ops=next(s for s in sources if s["source_type"]=="electricity")
             self.assertEqual(ops["reward_multiplier"],1)
-            self.assertAlmostEqual(r["fuel_energy_mj"],r["energy_mj"]-ops["allocated_energy_mj"])
+            self.assertAlmostEqual(r["allocated_fuel_energy_mj"],r["energy_mj"]-ops["allocated_energy_mj"])
+            self.assertAlmostEqual(r["fuel_energy_mj"],r["energy_mj"]-r["electricity_mwh"]*3600)
+            self.assertAlmostEqual(r["rfnbo_energy_mj"],r["alternative_t"]*42700*.5)
 
     def test_optimizer_multiyear_ops_and_reward_expiry_against_dense_grid(self):
         data=reviewed_case("E_DIESEL")

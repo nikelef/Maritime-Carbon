@@ -55,7 +55,11 @@ not the final RFNBO energy share and is not a mass/volume blending specification
 The operating-choice table shows the service share assigned to the alternative.
 The fuel-pathway ledger shows tonnes, pilot, LNG slip, scoped methane, actual
 RFNBO fuel-energy share and effective RFNBO reward. CSV and JSON include the
-physical and rewarded energy, inputs and versioned calculation record.
+physical and rewarded energy, inputs and versioned calculation record. RFNBO
+share and shortfall use physically scoped fuel energy (full intra-EU/EU berth,
+half EU/non-EU sea, no outside-scope use), independently of GHG allocation.
+Actual shore electricity is excluded. Allocated fuel/RFNBO energy is exported
+separately for GHG accounting.
 
 For horizons reaching 2034, the default shows potential 2% RFNBO shortfall without
 pricing it. In case assumptions, open **RFNBO subtarget from 2034** to record an
@@ -75,4 +79,6 @@ results for a customer decision.
 The allocation ledger shows each source's physical WtW, denominator reward,
 eligible MJ and allocated MJ. Saved reports retain the original engine and
 results. Review older saved complete WtW inputs against the FuelEU 25/298 basis
-before rerunning; user-entered factors are not silently replaced by new defaults.
+before rerunning. Noncanonical fossil oil factors block a new comparison until
+the case's supported defaults are explicitly restored; historical reports retain
+their recorded inputs and results.

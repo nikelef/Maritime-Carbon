@@ -1,12 +1,46 @@
 # Maritime Carbon desktop pitch production
 
+## Latest: 55-second FAME and shore-power film
+
+`Maritime_Carbon_One_Minute.mp4` in the repository root is the new short edition.
+It preserves the original `Maritime_Carbon.mp4`. The sequence is a brief title,
+four strategy policies, a fictional conventional-fuel ship, FAME and existing
+shore-power options, the cost comparison, selected quantities, and a conclusion.
+See [the case, assumptions and verification](../../docs/VIDEO_ONE_MINUTE_REVIEW.md).
+
+This edition uses animated graphics, focused real-app captures and synthetic
+British English narration. Its speech is measured before editing; every phrase
+finishes inside its scene. Intermediate media, captured evidence and QA files
+are under `video-artifacts/one-minute/`.
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install --target .tmp/video-short-deps Pillow==12.3.0 imageio-ffmpeg==0.6.0 edge-tts==7.2.8
+$env:PYTHONPATH='.tmp/video-short-deps;.'
+.\.venv\Scripts\python.exe -m scripts.video.short_case
+.\.venv\Scripts\python.exe -m scripts.video.short_film prepare
+$env:DJANGO_DEBUG='1'
+$env:PLAYWRIGHT_CHANNEL='msedge'
+.\.venv\Scripts\python.exe manage.py test scripts.video.capture_short --noinput
+.\.venv\Scripts\python.exe -m scripts.video.short_film preview
+.\.venv\Scripts\python.exe -m scripts.video.short_film render
+```
+
+Run each command only after the preceding step succeeds. Inspect the preview
+contact sheet before rendering. The capture harness checks prepared inputs,
+saved form inputs, replayed decisions, displayed costs, saved results and the
+exported JSON audit in an isolated test database. It never uses customer data.
+`short_case.py` owns the fixture; `short_film.py` owns the script and layout.
+Narration preparation needs network access; encoding is local.
+
+## Previous editions
+
 This workflow records real application interactions against Django's isolated test
 database. It does not open or modify `workspace.sqlite3`. Fixtures are fictional.
 The latest recording contains one bulk carrier and Voyage 1 in 2026, the owner's
 specified three-fuel consumption, HVO assumptions and the actual selected result.
 See [the current-engine review notes](../../docs/VIDEO_CURRENT_ENGINE_REVIEW.md).
 
-## Latest: current engine, fuel options, shore power and annual allocation
+## Current-engine long edition: fuel options, shore power and annual allocation
 
 The latest first-page revision is
 `current-engine/revised-intro/Maritime_Carbon_Revised.mp4`, with its matching

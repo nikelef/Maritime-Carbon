@@ -12,7 +12,7 @@ infrastructure needed when publishing the app. It is not a security certificatio
 | `portal/middleware.py` | Login throttling, private-response caching controls, content security policy and browser permission restrictions. |
 | `portal/views.py`, `portal/models.py`, `portal/admin.py` | Company isolation, roles, subscription access, revision checks, immutable snapshots and operator permissions. |
 | `.gitignore`, `.dockerignore` | Exclude secrets, databases, logs, notes, keys and generated artifacts from source and build context. Do not remove previous commits from history. |
-| `Dockerfile`, `requirements-web.txt` | Non-root image, production WSGI server and pinned runtime dependencies. |
+| `Dockerfile`, `maritime/serve.py`, `requirements-web.txt` | Non-root image, explicit Waitress proxy trust and pinned runtime dependencies. |
 | `.github/workflows/verify.yml` | Tests, dependency audit, production settings check and container build; read-only repository permissions, no production secrets. |
 | `.github/dependabot.yml` | Weekly dependency, Actions and container-base update proposals. Review and test updates. |
 | `portal/tests/` | Tenant isolation, roles, CSRF, login throttling, exports, provisioning and calculation regressions. |
@@ -35,8 +35,11 @@ environment variables. The app does not automatically read `.env` files.
 
 `DJANGO_ALLOWED_HOSTS` and `DJANGO_CSRF_TRUSTED_ORIGINS` are configuration rather
 than secrets; set them to the actual production host and HTTPS origins.
-Set `DJANGO_DEBUG=0`. Enable `TRUST_PROXY_HTTPS` only for a controlled proxy that
-strips client-supplied forwarding headers and supplies its own trusted value.
+Set `DJANGO_DEBUG=0`. With the supplied `python -m maritime.serve` entrypoint,
+set `TRUST_PROXY_HTTPS=1` and `WAITRESS_TRUSTED_PROXY` to the immediate proxy's
+IP address only when that proxy strips client-supplied forwarding headers and
+sets its own HTTPS scheme. Wildcard trust is rejected. Only the scheme is trusted;
+the direct peer IP remains the source for application login throttling.
 
 Never paste credentials into issues, commits, screenshots or build logs. Revoke
 and rotate exposed credentials; deleting a file alone is not sufficient.

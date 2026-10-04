@@ -201,7 +201,7 @@ def profile(vessel, scenario, year, blend=0, ops=False, replacements=None, leg_r
                                      rfnbo=False, reward_enabled=False)
     allocation = prioritize_energy(sources.values(), energy, rfnbo_reward(year))
     numerator = fsum(s["allocated_energy_mj"] * s["wtw_g"] for s in allocation)
-    rfnbo_energy = fsum(s["allocated_energy_mj"] for s in allocation if s["rfnbo"])
+    allocated_rfnbo_energy = fsum(s["allocated_energy_mj"] for s in allocation if s["rfnbo"])
     reward_eligible_energy = fsum(s["allocated_energy_mj"] for s in allocation if s["reward_enabled"])
     rewarded_energy = energy + (rfnbo_reward(year) - 1) * reward_eligible_energy
     # Annex I: electricity from shore has zero emissions in this regulatory intensity.
@@ -212,7 +212,14 @@ def profile(vessel, scenario, year, blend=0, ops=False, replacements=None, leg_r
     balance = (target(year) - attained) * energy / 1e6
     ets = fsum(tonnes * emissions_factor(f, year, consumer) * scope for f, tonnes, consumer, scope in parts) * ets_phase(year) if ets_applies else 0
     ch4_t = fsum(tonnes * physical_factors(f, consumer)[1] * scope for f, tonnes, consumer, scope in parts)
-    fuel_energy = fsum(s["allocated_energy_mj"] for s in allocation if s["source_type"] == "fuel")
+    allocated_fuel_energy = fsum(s["allocated_energy_mj"] for s in allocation if s["source_type"] == "fuel")
+    # Articles 5(10), 16(4)(d-e) and Annex IV(A)(b): the RFNBO planning
+    # ledger independently uses physical fuel/RFNBO energy, excluding OPS.
+    # Apply Article 2's usual 1 / .5 / 0 scope to actual consumption after
+    # switching, pilot demand and wind; GHG free attribution stays separate.
+    fuel_energy = scoped_fuel_energy if fueleu_applies else 0.0
+    rfnbo_energy = (fsum(tonnes * f.lcv * scope for f, tonnes, _, scope in parts
+                         if f.rfnbo and f.eligible) if fueleu_applies else 0.0)
     rfnbo_deficit = max(0, .02 * fuel_energy - rfnbo_energy) if year >= 2034 else 0
     rfnbo_active = year >= 2034 and scenario.rfnbo_subtarget == "assume_active"
     if rfnbo_active and scenario.rfnbo_penalty_pd is None:
@@ -245,8 +252,11 @@ def profile(vessel, scenario, year, blend=0, ops=False, replacements=None, leg_r
             "baseline_slip_pct": LNG_CONSUMERS[vessel.fuel_consumer][1] * 100 if any(fuels[entry["fuel"]].pathway == "methane" and entry["sea_t"] > 0 for entry in baseline_fuels) else 0,
             "alternative_slip_pct": LNG_CONSUMERS[vessel.alternative_consumer][1] * 100 if alt.pathway == "methane" and alt_t else 0,
             "scoped_ch4_t": ch4_t, "fuel_energy_mj": fuel_energy,
+            "rfnbo_subtarget_accounting_method": "physical_scoped",
             "rfnbo_energy_mj": rfnbo_energy, "rewarded_energy_mj": rewarded_energy,
-            "rfnbo_reward": 1 + (rfnbo_reward(year) - 1) * reward_eligible_energy / rfnbo_energy if rfnbo_energy else 1,
+            "allocated_fuel_energy_mj": allocated_fuel_energy,
+            "allocated_rfnbo_energy_mj": allocated_rfnbo_energy,
+            "rfnbo_reward": 1 + (rfnbo_reward(year) - 1) * reward_eligible_energy / allocated_rfnbo_energy if allocated_rfnbo_energy else 1,
             "rfnbo_share": rfnbo_energy / fuel_energy if fuel_energy else 0,
             "rfnbo_deficit_mj": rfnbo_deficit, "rfnbo_subtarget_active": rfnbo_active,
             "rfnbo_penalty_base": rfnbo_deficit / 41000 * scenario.rfnbo_penalty_pd if rfnbo_active else 0,
@@ -340,7 +350,7 @@ def simulate(scenario, decisions, use_pool=False, *, profile_cache=None, score_o
             continue
         sums = {key: fsum(r[key] for r in year_rows) for key in ("fuel_cost", "electricity_cost", "ets_cost", "penalty_cost", "pool_cost", "implementation_cost", "total_cost", "npv_cost", "ets_t", "balance_t", "pool_buy_t", "bank_close_t", "residual_deficit_t", "electricity_mwh", "alternative_t", "wind_saved_t", "wind_cost")}
         sums["other_cost"] = scenario.other_annual_cost
-        sums.update({key: fsum(r[key] for r in year_rows) for key in ("ghg_penalty_cost", "rfnbo_penalty_cost", "rfnbo_energy_mj", "rfnbo_deficit_mj", "pilot_t")})
+        sums.update({key: fsum(r[key] for r in year_rows) for key in ("ghg_penalty_cost", "rfnbo_penalty_cost", "fuel_energy_mj", "rfnbo_energy_mj", "allocated_fuel_energy_mj", "allocated_rfnbo_energy_mj", "rfnbo_deficit_mj", "pilot_t")})
         sums["total_cost"] += scenario.other_annual_cost
         sums["npv_cost"] += scenario.other_annual_cost / (1 + scenario.discount_rate) ** (year - scenario.start_year)
         sums["implementation_and_other_cost"] = sums["implementation_cost"] + sums["other_cost"]
@@ -603,7 +613,7 @@ def strategy_names(scenario):
             "combined": choices + " · pooling allowed"}
 
 
-def compare(scenario):
+def compare(scenario, *, ga_enabled=False):
     scenario.validate()
     zero = [(0, False, None, tuple((key, 0.0) for key in leg_demands(v, scenario))) for v in scenario.vessels]
     baseline = simulate(scenario, zero)
@@ -611,11 +621,15 @@ def compare(scenario):
         raise ValueError("Baseline fuel consumption exceeds an entered annual supply cap. Adjust the baseline or cap before comparing.")
     strategies = []
     names = strategy_names(scenario)
+    search = optimize
+    if ga_enabled:
+        from .ga_optimizer import optimize_hybrid
+        search = optimize_hybrid
     for key, result in [
         ("baseline", baseline),
         ("pool", simulate(scenario, zero, True)),
-        ("fuel", optimize(scenario, False)),
-        ("combined", optimize(scenario, True)),
+        ("fuel", search(scenario, False)),
+        ("combined", search(scenario, True)),
     ]:
         if result:
             result.update(key=key, name=names[key], savings=baseline["npv"] - result["npv"])
@@ -635,7 +649,10 @@ def compare(scenario):
     warnings = ["Prices and consumption are planning assumptions; prices are not a live market feed.",
                 "Lowest evaluated cost selects replacement by voyage, current fuel and sea-leg category. The previous fuel allocation search supplies an incumbent; a bounded continuous coordinate search adds leg allocation, energy transfers, FuelEU source-exhaustion boundaries, verified compliance roots and shared supply boundaries. Two starts and up to three fleet passes are used. Decisions are fixed over the horizon; a global optimum is not guaranteed.",
                 "FuelEU minimizes annual attained intensity per ship, accounting for the elected RFNBO denominator reward: full energy from intra-EU and EU–non-EU sea consumption and EU berth is available to fill the Article 2 covered energy total. Conventional fuels and eligible alternatives are prioritized together. ETS retains proportional voyage allocation. Outside-scope sea and non-EU berth are excluded from the FuelEU source inventory; MRV-reported FuelEU-exempt activity needs separate assessment.",
-                "Unused banked surplus has no cash income or terminal value. No surplus sale or borrowing is assumed."]
+                "Unused banked surplus has no cash income or terminal value. No surplus sale or borrowing is assumed.",
+                "The model reserves banked surplus for the originating ship and only settles a fully covered modelled fleet pool. Commission guidance also permits offering banked surplus through pooling. Bank contributions to pools, subset pools and partial settlements are not evaluated here; these modelling limits can overstate costs and affect strategy rankings."]
+    if ga_enabled:
+        warnings.append("GA On: a bounded genetic search explores joint fleet fuel and equipment choices, then the existing voyage-leg search refines its best improvement. The original optimizer's feasible result is retained unless a cheaper plan is found. The same annual calculations and constraints apply. This is the best strategy found, not a certified global optimum.")
     if any(v.wind_mode != "none" for v in scenario.vessels):
         warnings.append("Wind retrofits operate from the start of the horizon. Each sea row's reviewed propulsion share times its net saving reduces that fuel before switching; net savings must include WAPS auxiliary demand and preserve the same transport service. Hotel/boiler demand and berth fuel receive no wind reduction. Existing-wing consumption is already net, is not reduced again, and existing capital is sunk. Annual wing operating costs must not duplicate other entered costs.")
         warnings.append("The wind FuelEU factor is separately elected from reviewed EEDI/EEXI Pwind/Pprop evidence, not inferred from fuel savings. It multiplies attained annual intensity after RFNBO accounting, without adding wind MJ or reducing ETS emissions. Proposed installation eligibility remains conditional on technical completion and verifier review. Mid-year commissioning, weather routing, aerodynamic prediction and load-dependent engine/slip changes are not modelled; compare separate performance cases.")
@@ -681,6 +698,6 @@ def compare(scenario):
                 values.append((result["npv"], strategy["name"]))
         winner = min(values)
         sensitivities.append({"assumption": label, "npv": winner[0], "winner": winner[1]})
-    return {"wind_configured": any(v.wind_mode != "none" for v in scenario.vessels), "fueleu_allocation_method": "annual_reward_aware", "search_grid_percent": 100 / GRID_INTERVALS, "strategies": strategies, "best_key": strategies[0]["key"], "baseline_npv": baseline["npv"], "warnings": warnings, "sensitivities": sensitivities,
+    return {"wind_configured": any(v.wind_mode != "none" for v in scenario.vessels), "fueleu_allocation_method": "annual_reward_aware", "rfnbo_subtarget_accounting_method": "physical_scoped", "search_grid_percent": 100 / GRID_INTERVALS, "strategies": strategies, "best_key": strategies[0]["key"], "baseline_npv": baseline["npv"], "warnings": warnings, "sensitivities": sensitivities,
             "fuel_choice_notices": fuel_choice_notices(scenario),
             "horizon": f"{scenario.start_year}–{scenario.end_year}", "vessel_count": len(scenario.vessels), "coverage_limits": coverage_limits, "sources": [dict(s) for s in SOURCES], "checked_on": CHECKED_ON}

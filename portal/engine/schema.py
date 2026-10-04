@@ -4,6 +4,25 @@ from math import isfinite, fsum
 from .rules import LNG_CONSUMERS, FUELEU_GWP_CH4, FUELEU_GWP_N2O
 
 
+# Supported Annex II oil pathways. VLSFO remains the declared residual-oil
+# assumption; another composition needs its own supported pathway.
+_FOSSIL_OIL_DEFAULTS = {
+    "HSFO": (40500, 3.114, 13.5),
+    "VLSFO": (40500, 3.114, 13.5),
+    "MGO": (42700, 3.206, 14.4),
+}
+
+
+def fossil_oil_defaults(code):
+    """Return the supported default-only pathway, including derived FuelEU WtW."""
+    if code not in _FOSSIL_OIL_DEFAULTS:
+        return None
+    lcv, co2, wtt = _FOSSIL_OIL_DEFAULTS[code]
+    ch4, n2o = .00005, .00018
+    return dict(lcv=lcv, co2=co2, wtt=wtt, ch4=ch4, n2o=n2o,
+                wtw=wtt + (co2 + ch4 * FUELEU_GWP_CH4 + n2o * FUELEU_GWP_N2O) * 1e6 / lcv)
+
+
 def bounded(value, name, low, high):
     if isinstance(value, bool) or not isinstance(value, (int, float)) or not isfinite(value) or not low <= value <= high:
         raise ValueError(f"{name} must be a finite number between {low:g} and {high:g}.")
@@ -79,6 +98,14 @@ class Fuel:
             raise ValueError("Methane pathways use Annex II factors: LCV 49,100, CO2 2.75, combustion CH4 0 and N2O 0.00011. Slip is determined per vessel.")
         if self.pathway == "hydrogen_cell" and (self.co2 or self.ch4 or self.n2o):
             raise ValueError("The hydrogen fuel-cell pathway has zero direct CO2, CH4 and N2O factors.")
+        defaults = fossil_oil_defaults(self.code)
+        if defaults is not None:
+            if self.renewable or self.rfnbo or self.pathway != "oil":
+                raise ValueError(f"{self.code}: this supported fuel code must remain its fossil-oil pathway.")
+            if (any(getattr(self, name) != defaults[name] for name in ("lcv", "co2", "ch4", "n2o"))
+                    or abs(self.wtw - defaults["wtw"]) > 1e-8
+                    or (self.wtt is not None and self.wtt != defaults["wtt"])):
+                raise ValueError(f"{self.code}: use the supported Annex II fossil defaults and their derived WtW. Restore the case's fossil-oil defaults before a new calculation. Actual fossil-oil factors and other VLSFO compositions are not supported.")
         if not self.renewable and self.pathway != "methane":
             combustion_g = (self.co2 + self.ch4 * FUELEU_GWP_CH4 + self.n2o * FUELEU_GWP_N2O) * 1e6 / self.lcv
             if self.co2 <= 0 or self.wtw < combustion_g - 1e-8:
@@ -282,12 +309,11 @@ class Vessel:
 
 
 def default_fuels():
-    # Oil-engine Annex II example pathways. Supplier BDN/monitoring plan overrides matter.
-    def oil_wtw(lcv, co2, wtt):
-        return wtt + (co2 + .00005 * FUELEU_GWP_CH4 + .00018 * FUELEU_GWP_N2O) * 1e6 / lcv
-    return [Fuel("HSFO", "HSFO · residual oil", 40500, oil_wtw(40500, 3.114, 13.5), 3.114, .00005, .00018, 470),
-            Fuel("VLSFO", "VLSFO · residual oil assumption", 40500, oil_wtw(40500, 3.114, 13.5), 3.114, .00005, .00018, 575),
-            Fuel("MGO", "Marine gas oil", 42700, oil_wtw(42700, 3.206, 14.4), 3.206, .00005, .00018, 720),
+    def oil(code, name, price):
+        return Fuel(code, name, price=price, **fossil_oil_defaults(code))
+    return [oil("HSFO", "HSFO · residual oil", 470),
+            oil("VLSFO", "VLSFO · residual oil assumption", 575),
+            oil("MGO", "Marine gas oil", 720),
             Fuel("HVO", "HVO · supplier pathway required", 44000, 20, 3.114, .00005, .00018, 1550, renewable=True),
             Fuel("FAME", "FAME · non-food/feed pathway required", 37000, 25, 2.834, .00005, .00018, 1150, renewable=True),
             Fuel("LNG", "LNG · select engine on vessel", 49100, None, 2.75, 0, .00011, 700, pathway="methane", wtt=18.5),

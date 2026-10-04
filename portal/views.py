@@ -15,9 +15,9 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST, require_http_methods
-from .engine.schema import ScenarioInput, Vessel, default_fuels
+from .engine.schema import ScenarioInput, Vessel, default_fuels, fossil_oil_defaults
 from .engine.calculator import compare, fuel_choice_notices, strategy_actions, strategy_names
-from .engine.rules import ENGINE_VERSION, RULESET_VERSION, CHECKED_ON, SOURCES, REDUCTIONS, REFERENCE_G
+from .engine.rules import ENGINE_VERSION, RULESET_VERSION, CHECKED_ON, SOURCES, REDUCTIONS, REFERENCE_G, LNG_CONSUMERS
 from .forms import ScenarioForm, VesselForm, FuelForm, MemberForm, VesselImportForm
 from .imports import parse_vessels
 from .row_imports import ROW_COLUMNS
@@ -50,6 +50,17 @@ def audit(request, action, obj="", detail=""):
 
 def scenario_for(request, pk):
     return get_object_or_404(Scenario, pk=pk, company=request.company)
+
+
+def fossil_defaults_needing_review(data):
+    codes = []
+    for fuel in data.fuels:
+        if fossil_oil_defaults(fuel.code) is not None:
+            try:
+                fuel.validate()
+            except ValueError:
+                codes.append(fuel.code)
+    return codes
 
 
 def save_inputs(request, scenario, data, revision, name=None):
@@ -102,7 +113,7 @@ def scenario_detail(request, pk):
     except ValueError as exc:
         ready_errors.append(str(exc))
     missing_fuels = [f.code for f in default_fuels() if f.code not in {f.code for f in data.fuels}]
-    return render(request, "portal/scenario.html", {"scenario": scenario, "data": data, "missing_fuels": missing_fuels, "latest_run": scenario.runs.first(), "runs": scenario.runs.all()[:8], "ready_errors": ready_errors, "active_nav": "scenarios", "fuel_choice_notices": fuel_choice_notices(data)})
+    return render(request, "portal/scenario.html", {"scenario": scenario, "data": data, "missing_fuels": missing_fuels, "fossil_defaults_needing_review": fossil_defaults_needing_review(data), "latest_run": scenario.runs.first(), "runs": scenario.runs.all()[:8], "ready_errors": ready_errors, "active_nav": "scenarios", "fuel_choice_notices": fuel_choice_notices(data)})
 
 
 @workspace_required(edit=True)
@@ -267,6 +278,33 @@ def fuel_edit(request, pk, code):
 
 @require_POST
 @workspace_required(edit=True)
+def fossil_defaults_restore(request, pk):
+    scenario = scenario_for(request, pk)
+    data = ScenarioInput.from_dict(scenario.inputs)
+    try:
+        revision = int(request.POST.get("revision", ""))
+        if revision != scenario.revision:
+            raise ValueError("This case changed. Reload before restoring fossil fuel defaults.")
+        changed = fossil_defaults_needing_review(data)
+        if not changed:
+            messages.info(request, "The supported fossil fuel defaults already match the current rules.")
+        else:
+            for fuel in data.fuels:
+                if fuel.code in changed:
+                    for key, value in fossil_oil_defaults(fuel.code).items():
+                        setattr(fuel, key, value)
+                    fuel.pathway = "oil"
+                    fuel.renewable = fuel.rfnbo = fuel.eligible = False
+                    fuel.ets_eligible = False
+            save_inputs(request, scenario, data, revision)
+            messages.success(request, "Fossil fuel defaults restored for " + ", ".join(changed) + ". Prices, supply limits and saved reports are retained. Run a new comparison to use the corrected factors.")
+    except ValueError as exc:
+        messages.error(request, str(exc))
+    return redirect("scenario", pk=pk)
+
+
+@require_POST
+@workspace_required(edit=True)
 def fuel_library_extend(request, pk):
     """Explicitly extend an old case; never silently reinterpret a saved report."""
     scenario = scenario_for(request, pk)
@@ -306,7 +344,7 @@ def run_analysis(request, pk):
         data = ScenarioInput.from_dict(scenario.inputs)
         if len(data.vessels) > min(20, request.company.max_vessels):
             raise ValueError("This case exceeds the current company vessel limit.")
-        results = compare(data)
+        results = compare(data, ga_enabled=True) if request.POST.get("ga_enabled") == "on" else compare(data)
         snapshot = data.to_dict()
         digest = hashlib.sha256(json.dumps(snapshot, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()).hexdigest()
         with transaction.atomic():
@@ -338,6 +376,14 @@ def report_context(run, request):
     # Older snapshots get an explanation from their own recorded inputs. Neither
     # the saved result nor the current editable case is changed or recalculated.
     scenario = ScenarioInput.from_dict(run.inputs)
+    historical_warnings = []
+    if fossil_defaults_needing_review(scenario):
+        historical_warnings.append("Historical report: its saved fossil oil factors differ from the supported defaults. Restore fossil fuel defaults in the case and run a new comparison before relying on those emissions or costs. This saved report retains its original inputs and results.")
+    if scenario.end_year >= 2034 and results.get("rfnbo_subtarget_accounting_method") != "physical_scoped":
+        historical_warnings.append("Historical report: RFNBO shares and potential shortfalls use the saved GHG-intensity allocation. New comparisons use independently scoped physical fuel energy and exclude actual shore electricity. Run a new comparison for corrected RFNBO quantities and any assumed charges.")
+    if historical_warnings:
+        results = results | {"warnings": [*results.get("warnings", []), *historical_warnings],
+                             "coverage_limits": [*results.get("coverage_limits", []), *historical_warnings]}
     names = strategy_names(scenario)
     notices = results.get("fuel_choice_notices")
     if notices is None:
@@ -411,11 +457,19 @@ def export_run(request, pk, kind):
         response.write("\ufeff")
         writer = csv.writer(response)
         extra_columns = [("baseline_fuel", "baseline_fuel"), ("alternative_fuel", "alternative"), ("baseline_fuel_t", "baseline_t"), ("alternative_fuel_t", "alternative_t"), ("sea_MGO_pilot_t", "pilot_t"), ("baseline_LNG_slip_pct", "baseline_slip_pct"), ("alternative_LNG_slip_pct", "alternative_slip_pct"), ("scoped_CH4_t", "scoped_ch4_t"), ("physical_energy_MJ", "energy_mj"), ("rewarded_energy_MJ", "rewarded_energy_mj"), ("RFNBO_energy_MJ", "rfnbo_energy_mj"), ("RFNBO_share", "rfnbo_share"), ("RFNBO_potential_shortfall_MJ", "rfnbo_deficit_mj"), ("GHG_penalty_EUR", "ghg_penalty_cost"), ("RFNBO_assumed_penalty_EUR", "rfnbo_penalty_cost"), ("current_sea_fuels_json", "baseline_fuels"), ("total_fuel_tonnes_json", "fuel_tonnes"), ("berth_fuels_json", "berth_fuels"), ("non_EU_berth_tonnes", "non_eu_berth_t"), ("sea_fuel_replacements_json", "fuel_replacements"), ("sea_leg_replacements_json", "leg_replacements"), ("FuelEU_allocation_method", "fueleu_allocation_method"), ("FuelEU_annual_allocation_json", "fueleu_allocation"), ("wind_mode", "wind_mode"), ("wind_selected", "wind_selected"), ("wind_active", "wind_active"), ("wind_current_fuel_avoided_t", "wind_saved_t"), ("wind_cost_EUR", "wind_cost"), ("FuelEU_intensity_before_wind", "attained_before_wind_g"), ("FuelEU_wind_factor", "wind_factor"), ("wind_Pwind_kW", "wind_power_kw"), ("wind_Pprop_kW", "wind_propulsion_kw"), ("wind_technical_reference", "wind_reference"), ("wind_reward_reference", "wind_reward_reference")]
+        extra_columns += [("physical_fuel_energy_MJ", "physical_fuel_energy_mj"),
+                          ("FuelEU_allocated_fuel_energy_MJ", "allocated_fuel_energy_mj"),
+                          ("FuelEU_allocated_RFNBO_energy_MJ", "allocated_rfnbo_energy_mj"),
+                          ("RFNBO_subtarget_accounting_method", "rfnbo_subtarget_accounting_method")]
         writer.writerow(["run_id", "engine_version", "ruleset_version", "scenario_revision", "strategy", "vessel", "reporting_year", "attained_gCO2e_MJ", "target_gCO2e_MJ", "balance_tCO2e", "ets_tCO2e", "fuel_EUR", "electricity_EUR", "ETS_EUR", "FuelEU_penalty_EUR", "pool_EUR", "implementation_EUR", "total_EUR", "NPV_EUR", "bank_open_tCO2e", "bank_used_tCO2e", "bank_close_tCO2e", "pool_transfer_tCO2e", "pool_buy_tCO2e", "residual_deficit_tCO2e"] + [name for name, _ in extra_columns])
         keys = ("vessel", "year", "attained_g", "target_g", "balance_t", "ets_t", "fuel_cost", "electricity_cost", "ets_cost", "penalty_cost", "pool_cost", "implementation_cost", "total_cost", "npv_cost", "bank_open_t", "bank_used_t", "bank_close_t", "pool_transfer_t", "pool_buy_t", "residual_deficit_t")
         for strategy in run.results["strategies"]:
             for row in strategy["rows"]:
-                writer.writerow([str(run.pk), run.engine_version, run.ruleset_version, run.scenario_revision, safe_csv(strategy["name"])] + [safe_csv(row[k]) for k in keys] + [safe_csv(json.dumps(row[key], ensure_ascii=False, allow_nan=False) if isinstance(row.get(key), (dict, list)) else row.get(key, "")) for _, key in extra_columns])
+                # Older snapshots used fuel_energy_mj for GHG allocation. Keep
+                # their columns intact and leave the new physical-only field blank.
+                export_row = row | {"physical_fuel_energy_mj": row.get("fuel_energy_mj", "")
+                                    if row.get("rfnbo_subtarget_accounting_method") == "physical_scoped" else ""}
+                writer.writerow([str(run.pk), run.engine_version, run.ruleset_version, run.scenario_revision, safe_csv(strategy["name"])] + [safe_csv(row[k]) for k in keys] + [safe_csv(json.dumps(export_row[key], ensure_ascii=False, allow_nan=False) if isinstance(export_row.get(key), (dict, list)) else export_row.get(key, "")) for _, key in extra_columns])
             # Company-level other costs are explicit rows so export totals reconcile.
             for year in strategy["annual"]:
                 writer.writerow([str(run.pk), run.engine_version, run.ruleset_version, run.scenario_revision, safe_csv(strategy["name"]), "Company other costs", year["year"], "", "", "", "", 0, 0, 0, 0, 0, year["other_cost"], year["other_cost"], year["other_cost"] / (1 + run.inputs["discount_rate"]) ** (year["year"] - run.inputs["start_year"]), "", "", "", "", "", ""] + [""] * len(extra_columns))
@@ -470,7 +524,13 @@ def deactivate_member(request, pk):
 
 
 def methodology(request):
-    return render(request, "portal/methodology.html", {"sources": SOURCES, "checked_on": CHECKED_ON, "engine_version": ENGINE_VERSION, "ruleset": RULESET_VERSION, "pathway": [(year, reduction * 100, REFERENCE_G * (1 - reduction)) for year, reduction in REDUCTIONS.items()], "active_nav": "methodology"})
+    return render(request, "portal/methodology.html", {
+        "sources": SOURCES, "checked_on": CHECKED_ON,
+        "engine_version": ENGINE_VERSION, "ruleset": RULESET_VERSION,
+        "lng_consumers": [(label.rsplit(" · ", 1)[0], slip * 100) for label, slip in LNG_CONSUMERS.values()],
+        "pathway": [(year, reduction * 100, REFERENCE_G * (1 - reduction)) for year, reduction in REDUCTIONS.items()],
+        "active_nav": "methodology",
+    })
 
 
 def demo(request):

@@ -1,7 +1,10 @@
 # Regulatory basis and calculation contract
 
-Allocation source review: 2026-09-10; wind source review: 2026-09-16.
-Ruleset: `EU-2026-09-16-wind`. Engine: `6.8.0`.
+Latest source and operational review: 2026-10-04.
+Ruleset: `EU-2026-10-04-review`. Engine: `6.9.0`.
+Statutory coefficients remain unchanged. Fossil-default validation and physical
+RFNBO subtarget accounting are corrected; see [the review](APP_REVIEW_2026-10-04.md)
+and [the correction record](CORRECTIONS_2026-10-04.md) for evidence and limits.
 Earlier dated sections below record the history; the current allocation contract supersedes proportional attribution and the 6.6 physical-WtW ordering when an RFNBO reward applies.
 This is a bounded planning model, not a statement of universal legal applicability.
 
@@ -50,9 +53,12 @@ HSFO uses the Annex II residual-oil reference: LCV 40,500 MJ/t, WtT 13.5,
 CO2 3.114 t/t, CH4 0.00005 t/t and N2O 0.00018 t/t. VLSFO initially uses
 that pathway as an explicit composition assumption; the actual blend matters.
 MGO uses LCV 42,700, WtT 14.4 and CO2 3.206, with the same reference CH4/N2O.
-Initial fossil WtW is derived from these factors, rather than a disconnected
-rounded value. Users must review changes to the complete WtW factor themselves;
-editing individual ETS factors does not implicitly change supplier-pathway WtW.
+Supported fossil oil LCV, CO2, WtT and reference CH4/N2O are fixed, with complete
+WtW derived from those factors. Article 10(4–5) prohibits fossil WtT and combustion
+CO2 overrides. Actual fossil oil non-CO2 factors and other VLSFO compositions
+are not implemented. New comparisons reject noncanonical older factors; the
+explicit case-level restore action retains prices, supply and historical reports.
+Renewable HVO/FAME still use reviewed complete supplier-pathway WtW inputs.
 
 HVO/FAME prices, full pathway intensities, LCV and engine factors are illustrative
 inputs. They are not universally valid regulatory defaults. The eligibility flag
@@ -123,7 +129,13 @@ priced, and the report prominently identifies partial cost scope.
 Users can record an assumed-active or assumed-inactive case with a rationale.
 For an active stress test, the ship shortfall is
 `max(0, 0.02 × physical in-scope fuel energy − eligible RFNBO energy)` in MJ.
-OPS energy is excluded. The modelled charge is `shortfall / 41000 × assumed Pd`,
+Both fuel energy and eligible RFNBO energy are summed independently from actual
+consumption after switching, pilot, wind and OPS: 100% intra-EU/EU berth, 50%
+EU/non-EU sea, 0% other sea/non-EU berth. GHG attribution and the RFNBO intensity
+reward do not change those subtarget quantities. Actual OPS electricity is excluded
+even when the GHG allocation chooses negative-intensity fuel instead. JSON/CSV
+distinguish physical subtarget energy from allocated GHG energy.
+The modelled charge is `shortfall / 41000 × assumed Pd`,
 with the Article 23 consecutive-penalty uplift. Pd is a user-entered constant
 EUR per equivalent 41,000-MJ tonne, shared across the case, not the quoted price
 per tonne of the chosen chemical fuel or a verified future statutory tariff.
@@ -165,8 +177,12 @@ non-oil systems. One alternative system per ship is evaluated per case.
 ## Strategy policy versus legal permission
 
 Each ship first uses its own opening bank against its deficit. Current surplus
-can be carried forward or allocated in a modelled fleet pool. Existing bank
-never transfers to another ship. No bank is converted to cash, sold, or assigned
+can be carried forward or allocated in a modelled fleet pool. In this model, existing bank
+never transfers to another ship. This is a modelling restriction: Commission
+FuelEU guidance section 11.2.2 (page 116) permits offering banked surplus through
+a pool. Bank-funded pools, subset pools and partial settlements are not searched,
+so results can overstate costs and change strategy rankings relative to those
+additional permitted choices. No bank is converted to cash, sold, or assigned
 a terminal value.
 
 For modelling simplicity, a pooling policy settles the full included fleet only

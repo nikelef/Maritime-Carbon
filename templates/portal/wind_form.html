@@ -1,6 +1,6 @@
-<section class="panel form-panel" id="wind-assistance">
-  <h2>Wings & wind-assisted propulsion</h2>
+<details class="panel form-panel" id="wind-assistance" data-disclosure{% if form.non_field_errors or form.wind_mode.errors or form.wind_capex.errors or form.wind_annual.errors or form.wind_confirmed.errors or form.wind_reference.errors or form.wind_reward.errors or form.wind_power_kw.errors or form.wind_propulsion_kw.errors or form.wind_reward_reference.errors %} open{% endif %}><summary><h2>Wings & wind-assisted propulsion</h2></summary>
   <p class="section-help">Compare a proposed rigid-wing, suction-wing or other wind installation alongside fuel switching, shore power and pooling. The proposed retrofit operates from the start of the case horizon. Annual performance stays fixed.</p>
+  <p class="section-help"><a href="{% url 'methodology' %}#wind-assistance" target="_blank" rel="noopener noreferrer">How wings are applied: setup, physical savings, FuelEU reward and costs ↗</a></p>
   {% include 'portal/field.html' with field=form.wind_mode %}
   <p class="section-help"><strong>Proposed retrofit:</strong> enter consumption before wind savings. For every sea row above, specify the propulsion share and the net saving on that propulsion fuel. For example, 80% propulsion and 10% net saving remove 8% of that row's tonnes before fuel switching. Enter 0% saving for unaffected legs or pilot fuel that must remain. Berth consumption is unaffected.</p>
   <p class="section-help">Net savings must already include the wind equipment's auxiliary power demand, at the same transport service and speed. Use a reviewed estimate for each voyage, category and fuel; the app does not predict aerodynamics or weather. Fuel switching applies to the remaining demand.</p>
@@ -19,4 +19,4 @@
     {% include 'portal/field.html' with field=form.wind_propulsion_kw %}
   </div>
   {% include 'portal/field.html' with field=form.wind_reward_reference %}
-</section>
+</details>
