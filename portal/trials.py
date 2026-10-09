@@ -53,8 +53,8 @@ def register_trial(request, token):
     if request.method == "POST" and form.is_valid():
         try:
             with transaction.atomic():
-                invitation = TrialInvitation.objects.select_for_update().get(pk=token)
-                if not invitation.available:
+                invitation = TrialInvitation.objects.select_for_update().filter(pk=token).first()
+                if invitation is None or not invitation.available:
                     return unavailable(request)
                 user = form.save(commit=False)
                 user.email = invitation.email

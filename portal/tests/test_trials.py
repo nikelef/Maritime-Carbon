@@ -1,8 +1,10 @@
 """Invitation registration, private workspaces and single-use access controls."""
 from datetime import timedelta
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.contrib import admin
 from django.db import IntegrityError
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
@@ -101,6 +103,29 @@ class TrialRegistrationTests(TestCase):
         self.assertFalse(get_user_model().objects.filter(username="trial_tester").exists())
         self.invitation.refresh_from_db()
         self.assertTrue(self.invitation.available)
+
+    def test_deleted_invitation_during_registration_creates_nothing(self):
+        with patch("portal.trials.TrialInvitation.objects.select_for_update") as locked:
+            locked.return_value.filter.return_value.first.return_value = None
+            self.assertEqual(self.client.post(self.url, self.data).status_code, 410)
+        self.assertEqual(Company.objects.count(), 0)
+        self.assertFalse(get_user_model().objects.filter(username="trial_tester").exists())
+
+    def test_stale_operator_edit_cannot_reset_a_redeemed_invitation(self):
+        stale = TrialInvitation.objects.get(pk=self.invitation.pk)
+        self.client.post(self.url, self.data)
+        operator = get_user_model().objects.create_superuser("operator", "operator@example.test", "LongOperator!6384")
+        stale.company_name = "Stale edit"
+        stale.revoked = True
+        admin.site._registry[TrialInvitation].save_model(SimpleNamespace(user=operator), stale, None, change=True)
+        stale.refresh_from_db()
+        self.assertIsNotNone(stale.accepted_at)
+        self.assertEqual(stale.accepted_by.username, "trial_tester")
+        self.assertEqual(stale.company_name, "Invited company")
+        self.assertEqual(stale.company, get_user_model().objects.get(username="trial_tester").membership.company)
+        self.client.logout()
+        self.assertEqual(self.client.post(self.url, self.data | {"username": "second_user"}).status_code, 410)
+        self.assertEqual(Company.objects.count(), 1)
 
     def test_other_workspace_and_expired_trial_remain_inaccessible(self):
         other = Company.objects.create(name="Other company", access_until=timezone.localdate() + timedelta(days=3))

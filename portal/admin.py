@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.db import transaction
 from django.urls import reverse
 from django.utils.html import format_html
 from .models import Company, Membership, Scenario, AnalysisRun, AuditEvent, TrialInvitation
@@ -20,8 +21,18 @@ class TrialInvitationAdmin(admin.ModelAdmin):
         return format_html('<a href="{}">Copy this invitation link address to send to the recipient</a>', reverse("register_trial", args=[obj.pk]))
 
     def save_model(self, request, obj, form, change):
-        if not change:
-            obj.created_by = request.user
+        if change:
+            # An operator may edit a form opened before its recipient registers.
+            # Never write stale acceptance fields back over a redeemed link.
+            with transaction.atomic():
+                current = TrialInvitation.objects.select_for_update().get(pk=obj.pk)
+                fields = ("revoked",) if current.accepted_at else (
+                    "email", "company_name", "trial_days", "max_users", "max_vessels", "expires_at", "revoked",
+                )
+                obj.save(update_fields=fields)
+                obj.refresh_from_db()
+            return
+        obj.created_by = request.user
         super().save_model(request, obj, form, change)
 
     def get_readonly_fields(self, request, obj=None):
