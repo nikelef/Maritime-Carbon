@@ -1,0 +1,25 @@
+# Free web hosting. DATABASE_URL is a separate free PostgreSQL service, e.g. Neon.
+# Render's own free PostgreSQL databases expire after 30 days.
+services:
+  - type: web
+    name: maritime-carbon
+    runtime: python
+    plan: free
+    region: frankfurt
+    branch: main
+    buildCommand: python -m pip install -r requirements-web.txt && python -m maritime.render --build
+    startCommand: python -m maritime.render
+    healthCheckPath: /health/
+    envVars:
+      - key: DJANGO_DEBUG
+        value: "0"
+      - key: RENDER_SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: BOOTSTRAP_ADMIN_USERNAME
+        sync: false
+      - key: BOOTSTRAP_ADMIN_EMAIL
+        sync: false
+      - key: BOOTSTRAP_ADMIN_PASSWORD
+        sync: false

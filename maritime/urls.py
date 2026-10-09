@@ -2,10 +2,12 @@ from django.contrib import admin
 from django.contrib.auth import views as auth
 from django.urls import path
 from portal import views
+from portal.trials import register_trial
 
 urlpatterns = [
     path("", views.dashboard, name="dashboard"),
     path("accounts/login/", auth.LoginView.as_view(template_name="registration/login.html"), name="login"),
+    path("accounts/register/<uuid:token>/", register_trial, name="register_trial"),
     path("accounts/logout/", auth.LogoutView.as_view(), name="logout"),
     path("accounts/password/", auth.PasswordChangeView.as_view(template_name="registration/password_change.html", success_url="/accounts/password/done/"), name="password_change"),
     path("accounts/password/done/", auth.PasswordChangeDoneView.as_view(template_name="registration/password_change_done.html"), name="password_change_done"),

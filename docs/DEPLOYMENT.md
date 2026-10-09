@@ -5,6 +5,11 @@ container definition. No production account, public domain or payment provider
 has been connected. The initial commercial workflow is manually invoiced company
 subscriptions with operator-controlled entitlements.
 
+For the free Render beta, use [RENDER_FREE.md](RENDER_FREE.md) and `render.yaml`.
+That setup uses an external free PostgreSQL database and a Render-specific
+HTTPS/startup entry point. Operators can create private registration invitations
+from `/admin/` without connecting a payment or outgoing email service.
+
 ## Local preview
 
 Run `./run-local.ps1 -Install` on Windows. It uses a project virtual environment,

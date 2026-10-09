@@ -27,6 +27,10 @@ Python 3.12 is recommended. On Windows:
 Open [the example fleet](http://127.0.0.1:8000/demo/) or
 [the company sign-in page](http://127.0.0.1:8000/accounts/login/).
 The example uses fictional data and does not create an account.
+For a free hosted beta with private registration links, follow
+[the Render setup](docs/RENDER_FREE.md). Operators create single-use trial
+invitations in `/admin/`; recipients choose their own passwords and receive a
+separate company workspace with a fictional example case.
 There is also an [LNG/RFNBO transition example](http://127.0.0.1:8000/demo/?fuels=transition)
 with an existing LNG vessel and a methanol-conversion candidate.
 
@@ -182,6 +186,8 @@ PostgreSQL connection. SQLite and the Django development server are local tools.
 Follow [DEPLOYMENT.md](docs/DEPLOYMENT.md) for setup, provisioning, backups,
 maintenance, and the remaining commercial launch requirements. The service has
 not been deployed to a public domain, independently certified, or penetration tested.
+The supplied [Render Free blueprint](render.yaml) uses an external PostgreSQL
+database and a separate Render entry point; see [RENDER_FREE.md](docs/RENDER_FREE.md).
 
 ## Verification
 

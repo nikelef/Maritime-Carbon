@@ -13,6 +13,8 @@ infrastructure needed when publishing the app. It is not a security certificatio
 | `portal/views.py`, `portal/models.py`, `portal/admin.py` | Company isolation, roles, subscription access, revision checks, immutable snapshots and operator permissions. |
 | `.gitignore`, `.dockerignore` | Exclude secrets, databases, logs, notes, keys and generated artifacts from source and build context. Do not remove previous commits from history. |
 | `Dockerfile`, `maritime/serve.py`, `requirements-web.txt` | Non-root image, explicit Waitress proxy trust and pinned runtime dependencies. |
+| `render.yaml`, `maritime/render.py` | Free Render service, exact host/origin, generated secret, HTTPS scheme and serialized PostgreSQL initialization. |
+| `portal/trials.py`, `portal/models.py` | Single-use operator invitations, expiry/revocation, private trial workspaces and non-staff customer accounts. |
 | `.github/workflows/verify.yml` | Tests, dependency audit, production settings check and container build; read-only repository permissions, no production secrets. |
 | `.github/dependabot.yml` | Weekly dependency, Actions and container-base update proposals. Review and test updates. |
 | `portal/tests/` | Tenant isolation, roles, CSRF, login throttling, exports, provisioning and calculation regressions. |
@@ -27,6 +29,12 @@ environment variables. The app does not automatically read `.env` files.
   least 50 characters. Never use the development fallback or an example value.
 - `DATABASE_URL`: database username, password and connection details. Use a
   restricted runtime account and the provider's verified TLS setup.
+- `RENDER_SECRET_KEY`: Render's generated 256-bit secret; the Render entry point
+  derives the Django key from it. Keep it stable across deploys.
+- `BOOTSTRAP_ADMIN_USERNAME`, `BOOTSTRAP_ADMIN_EMAIL` and
+  `BOOTSTRAP_ADMIN_PASSWORD`: temporary Render secrets for the first operator.
+  Remove all three after the first successful sign-in. Startup never changes
+  an existing operator's password or promotes an existing customer account.
 - `EMAIL_HOST_PASSWORD` and SMTP credentials if outgoing email is added.
   Self-service email password reset is not implemented yet.
 - Customer/operator passwords, database backups, private keys and certificates.

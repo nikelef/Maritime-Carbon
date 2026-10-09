@@ -1,9 +1,14 @@
 import uuid
+from datetime import timedelta
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from django.utils import timezone
+
+
+def invitation_expiry():
+    return timezone.now() + timedelta(days=7)
 
 
 class Company(models.Model):
@@ -27,6 +32,30 @@ class Membership(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="membership")
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="memberships")
     role = models.CharField(max_length=12, choices=ROLES, default="analyst")
+
+
+class TrialInvitation(models.Model):
+    """A private, single-use registration link created by the service operator."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    email = models.EmailField()
+    company_name = models.CharField(max_length=160)
+    trial_days = models.PositiveIntegerField(default=30, validators=[MinValueValidator(1), MaxValueValidator(90)])
+    max_users = models.PositiveIntegerField(default=1, validators=[MinValueValidator(1), MaxValueValidator(5)])
+    max_vessels = models.PositiveIntegerField(default=3, validators=[MinValueValidator(1), MaxValueValidator(20)])
+    expires_at = models.DateTimeField(default=invitation_expiry)
+    revoked = models.BooleanField(default=False)
+    accepted_at = models.DateTimeField(null=True, blank=True, editable=False)
+    accepted_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name="accepted_trial_invitations", editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, null=True, blank=True, editable=False)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name="created_trial_invitations", editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    @property
+    def available(self):
+        return not self.revoked and self.accepted_at is None and self.expires_at > timezone.now()
+
+    def __str__(self):
+        return f"{self.company_name} · {self.email}"
 
 
 class Scenario(models.Model):

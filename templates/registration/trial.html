@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% block title %}Your free trial · Maritime Carbon{% endblock %}
+{% block layout %}
+<main id="main" class="login-layout">
+  <section class="login-story">
+    <a href="{% url 'demo' %}" class="brand"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span><span>MARITIME<br><strong>CARBON</strong></span></a>
+    <div class="login-copy"><span class="eyebrow light">YOUR FREE TRIAL</span><h1>Explore your fleet’s<br>carbon costs.</h1><p>Try your own planning assumptions, compare strategies and save your results in a private company workspace.</p><div class="story-points"><span>01 <b>Create your account</b></span><span>02 <b>Explore an example fleet</b></span><span>03 <b>Try your own case</b></span></div></div>
+    <div class="ocean-lines" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    <div class="login-foot">FuelEU Maritime <span>+</span> EU Emissions Trading System</div>
+  </section>
+  <section class="login-form-panel"><div class="login-form-inner">
+    {% if unavailable %}
+      <span class="eyebrow">INVITATION UNAVAILABLE</span><h2>Let’s get you a new link.</h2><p>This invitation has expired, has already been used or is no longer available. Ask the person who invited you for a new invitation.</p><a class="button" href="{% url 'login' %}">Sign in to an existing account</a>
+    {% elif already_signed_in %}
+      <span class="eyebrow">ALREADY SIGNED IN</span><h2>Sign out to register.</h2><p>This invitation creates a separate trial workspace. Sign out of your current account before using it.</p><form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="button" type="submit">Sign out</button></form>
+    {% else %}
+      <span class="eyebrow">{{ invitation.company_name }}</span><h2>You’re invited.</h2><p class="muted">Create your account for {{ invitation.email }}. Your {{ invitation.trial_days }}-day trial is free, with up to {{ invitation.max_vessels }} vessels per case. No payment details are needed.</p>
+      <form method="post" class="login-form">{% csrf_token %}{{ form.non_field_errors }}{% for field in form %}{% include 'portal/field.html' %}{% endfor %}<button class="button primary wide" type="submit">Create my free workspace <span>→</span></button></form>
+      <p class="help">This invitation can be used once. Your inputs and saved reports stay within your company workspace.</p>
+    {% endif %}
+    <div class="login-preview"><span>Explore before you register</span><a href="{% url 'demo' %}">Open the example fleet ↗</a></div>
+    <p class="login-disclaimer">A planning workspace for ship management companies.<br>Final compliance remains subject to verified data and applicable law.</p>
+  </div></section>
+</main>
+{% endblock %}
