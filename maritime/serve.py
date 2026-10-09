@@ -1,4 +1,4 @@
-"""Waitress entry point with explicit trust for the immediate HTTPS proxy."""
+"""Waitress entry point for Render or an explicitly trusted HTTPS proxy."""
 import ipaddress
 import os
 
@@ -41,6 +41,12 @@ def server_options(environ=None):
 
 
 def main():
+    if os.environ.get("RENDER") == "true":
+        # Docker runs this entry point too. Configure Render's secrets, hostname,
+        # migrations and HTTPS scheme before importing Django's WSGI application.
+        from .render import main as render_main
+
+        return render_main()
     options = server_options()
     from .wsgi import application
 

@@ -2,6 +2,9 @@
 import base64
 import io
 import os
+import subprocess
+import sys
+import textwrap
 from http.cookies import SimpleCookie
 from types import SimpleNamespace
 from unittest.mock import MagicMock, call, patch
@@ -16,6 +19,7 @@ from waitress.adjustments import Adjustments
 from waitress.proxy_headers import proxy_headers_middleware
 
 from maritime.render import configure_environment, initialize_database, server_options
+from maritime.serve import main as docker_main
 from portal.models import TrialInvitation
 
 
@@ -75,6 +79,59 @@ class RenderConfigurationTests(SimpleTestCase):
         self.assertEqual(cursor.execute.call_args_list[0].args[0], "SELECT pg_advisory_lock(%s)")
         self.assertEqual(cursor.execute.call_args_list[-1].args[0], "SELECT pg_advisory_unlock(%s)")
         connection.close.assert_called_once()
+
+    def test_docker_launcher_configures_production_before_loading_wsgi(self):
+        # A fresh interpreter reproduces Docker startup: Django settings have
+        # not yet been loaded and only Render's generated secret is provided.
+        environ = {
+            key: value for key, value in os.environ.items()
+            if not key.startswith(("DJANGO_", "RENDER_", "BOOTSTRAP_ADMIN_", "WAITRESS_"))
+            and key not in ("RENDER", "DATABASE_URL", "TRUST_PROXY_HTTPS", "PORT")
+        }
+        environ.update(self.environment(PORT="12345", DATABASE_URL="postgresql://test:test@localhost/test?sslmode=require"))
+        script = textwrap.dedent("""
+            from unittest.mock import patch
+            from maritime.serve import main
+
+            with patch("maritime.render.initialize_database") as initialize, patch("waitress.serve") as start:
+                main()
+                initialize.assert_called_once_with()
+                start.assert_called_once()
+                application = start.call_args.args[0]
+                options = start.call_args.kwargs
+                assert options["listen"] == "0.0.0.0:12345"
+                assert options["url_scheme"] == "https"
+                assert options["clear_untrusted_proxy_headers"] is True
+                from django.conf import settings
+                assert settings.DEBUG is False
+                assert len(settings.SECRET_KEY) == 64
+                assert settings.ALLOWED_HOSTS == ["maritime-carbon.onrender.com"]
+                assert settings.CSRF_TRUSTED_ORIGINS == ["https://maritime-carbon.onrender.com"]
+                from django.test import RequestFactory
+                request = RequestFactory().get("/health/", secure=True, HTTP_HOST="maritime-carbon.onrender.com")
+                captured = {}
+                # The health view queries Postgres; this test checks startup
+                # and HTTPS handling without requiring an external database.
+                with patch("django.db.connection.cursor"):
+                    response = application(request.environ, lambda status, headers: captured.update(status=status))
+                    try:
+                        assert b"".join(response) == b"ok"
+                        assert captured["status"] == "200 OK"
+                    finally:
+                        response.close()
+                print("Docker production startup verified")
+        """)
+        result = subprocess.run([sys.executable, "-c", script], env=environ, capture_output=True, text=True, timeout=30)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("Docker production startup verified", result.stdout)
+
+    def test_docker_launcher_rejects_incomplete_render_configuration_before_starting(self):
+        for overrides in ({"RENDER_SECRET_KEY": ""}, {"RENDER_EXTERNAL_HOSTNAME": "invalid.example.com"}, {"DJANGO_DEBUG": "1"}):
+            with self.subTest(overrides=overrides), patch.dict(os.environ, self.environment(**overrides), clear=True), patch.object(sys, "argv", ["maritime.serve"]), patch("maritime.render.initialize_database") as initialize, patch("waitress.serve") as start:
+                with self.assertRaises(ImproperlyConfigured):
+                    docker_main()
+                initialize.assert_not_called()
+                start.assert_not_called()
 
 
 @override_settings(PASSWORD_HASHERS=["django.contrib.auth.hashers.MD5PasswordHasher"])

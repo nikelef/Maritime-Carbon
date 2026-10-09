@@ -53,6 +53,28 @@ Choose only Free plans. Render documents that services without a payment method
 are suspended rather than billed when applicable free usage allowances are
 exceeded. Do not upgrade a plan or add paid resources to keep a demo running.
 
+## If the service was created with Docker
+
+An existing **Free Docker** service can use the same setup without creating a
+second service. The Docker launcher detects Render and runs `maritime.render`
+before loading Django. Keep the Docker Command empty to use the Dockerfile's
+default, or set it explicitly to `python -m maritime.render`.
+
+The blueprint's environment variables are only applied when using a Blueprint.
+For a manually created service, open its **Environment** page and add
+`DJANGO_DEBUG=0`, the direct Neon `DATABASE_URL`, the three `BOOTSTRAP_ADMIN_*`
+variables above, and a persistent secret. Set `DJANGO_SECRET_KEY` to a
+cryptographically random value of at least 50 characters, using a password
+manager's generator or Python's `secrets.token_urlsafe(64)`. Alternatively, use
+`RENDER_SECRET_KEY` with the blueprint's generated 256-bit value. Keep secrets out of GitHub and
+redeploy after saving the environment. Do not enable debug mode to bypass a
+missing key. After the first sign-in, remove the bootstrap variables as above.
+
+If startup reports `Set DJANGO_SECRET_KEY` from `maritime.serve`, deploy the
+latest `main` commit or set the Docker Command to `python -m maritime.render`.
+If it reports a missing `RENDER_SECRET_KEY`, add the persistent secret described
+above. A successful Docker image build does not configure these runtime values.
+
 ## Invite someone to register
 
 1. In `/admin/`, open **Trial invitations** and choose **Add**.
@@ -80,9 +102,10 @@ connected.
 
 ## HTTPS and database operation
 
-The Render entry point is `python -m maritime.render`, distinct from the generic
-Docker/Waitress entry point. It runs only when Render's platform flag and a valid
-`onrender.com` hostname are present, rejects debug mode and requires PostgreSQL.
+The Render entry point is `python -m maritime.render`; the default Docker/Waitress
+launcher also selects it automatically on Render. It runs only when Render's
+platform flag and a valid `onrender.com` hostname are present, rejects debug mode
+and requires PostgreSQL.
 It binds to Render's `PORT`. Render's public load balancer redirects HTTP to
 HTTPS; the app sets its WSGI scheme to HTTPS and drops forwarded headers rather
 than accepting arbitrary proxy addresses. Login throttling retains the direct
