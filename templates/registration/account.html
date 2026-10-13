@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block title %}Your account · Maritime Carbon{% endblock %}
+{% block content %}
+<div class="page-heading"><div><span class="eyebrow">YOUR ACCOUNT</span><h1>Your account</h1><p>Your sign-in details and account settings.</p></div></div>
+<section class="panel narrow">
+  <div class="panel-heading"><h2>Sign-in details</h2></div>
+  <div class="table-scroll"><table><tbody>
+    <tr><th scope="row">Username</th><td>{{ user.username }}</td></tr>
+    <tr><th scope="row">Email</th><td>{{ user.email|default:'Not set' }}</td></tr>
+    {% if user.get_full_name %}<tr><th scope="row">Name</th><td>{{ user.get_full_name }}</td></tr>{% endif %}
+    <tr><th scope="row">Role</th><td>{% if user.is_staff %}Service administrator{% elif membership %}{{ membership.get_role_display }}{% else %}Member{% endif %}</td></tr>
+  </tbody></table></div>
+  <div class="form-actions">
+    {% if user.is_staff %}<a class="button primary" href="{% url 'admin:index' %}">Open administration</a>{% elif workspace %}<a class="button primary" href="{% url 'dashboard' %}">Return to workspace</a>{% endif %}
+    <a class="button secondary" href="{% url 'password_change' %}">Change password</a>
+  </div>
+</section>
+{% endblock %}
