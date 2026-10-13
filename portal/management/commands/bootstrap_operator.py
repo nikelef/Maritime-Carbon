@@ -8,6 +8,8 @@ from django.core.management.base import BaseCommand, CommandError
 from django.core.validators import validate_email
 from django.db import transaction
 
+from portal.accounts import ensure_operator_workspace
+
 
 class Command(BaseCommand):
     help = "Create the initial operator from BOOTSTRAP_ADMIN_* environment variables. Never resets an existing account."
@@ -27,6 +29,7 @@ class Command(BaseCommand):
                 if not (existing.is_active and existing.is_staff and existing.is_superuser
                         and existing.email.casefold() == email.casefold()):
                     raise CommandError("Bootstrap username belongs to an existing account. Choose a different operator username.")
+                ensure_operator_workspace(existing)
                 self.stdout.write("Operator already exists; credentials unchanged.")
                 return
             user = user_model(username=username, email=email, is_staff=True, is_superuser=True)
@@ -38,4 +41,5 @@ class Command(BaseCommand):
             except ValidationError as exc:
                 raise CommandError("; ".join(exc.messages)) from exc
             user.save()
+            ensure_operator_workspace(user)
         self.stdout.write(self.style.SUCCESS("Initial operator created. Remove BOOTSTRAP_ADMIN_* variables from the host."))

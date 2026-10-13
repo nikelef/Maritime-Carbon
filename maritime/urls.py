@@ -4,12 +4,13 @@ from django.contrib.auth.decorators import login_required
 from django.urls import path
 from django.views.generic import TemplateView
 from portal import views
+from portal.accounts import WorkspaceLoginView
 from portal.trials import register_trial
 
 urlpatterns = [
     path("", views.dashboard, name="dashboard"),
     path("accounts/", login_required(TemplateView.as_view(template_name="registration/account.html")), name="account"),
-    path("accounts/login/", auth.LoginView.as_view(template_name="registration/login.html"), name="login"),
+    path("accounts/login/", WorkspaceLoginView.as_view(), name="login"),
     path("accounts/register/<uuid:token>/", register_trial, name="register_trial"),
     path("accounts/logout/", auth.LogoutView.as_view(), name="logout"),
     path("accounts/password/", auth.PasswordChangeView.as_view(template_name="registration/password_change.html", success_url="/accounts/password/done/"), name="password_change"),

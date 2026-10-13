@@ -44,6 +44,12 @@ inviting a larger group.
    `/health/`, `/accounts/login/` and `/admin/`. Sign in to `/admin/` with the
    operator account you selected. This privileged account manages trials; each
    invited customer gets a separate, non-staff account.
+   The same operator can use `/accounts/login/` to open the calculator. A private
+   active workspace is created if the operator has no existing membership, with
+   five seats, twenty vessels per case and access through 2099. Existing company
+   assignments and access dates are preserved. The normal login opens the app;
+   the `/admin/` login opens the operator console. **Account** provides links to
+   both environments, with password changes remaining optional.
 6. Remove **all three** `BOOTSTRAP_ADMIN_*` variables from the web service's
    Environment page after confirming the first sign-in. Keep `DATABASE_URL` and
    `RENDER_SECRET_KEY`. Removing the bootstrap variables does not remove the
